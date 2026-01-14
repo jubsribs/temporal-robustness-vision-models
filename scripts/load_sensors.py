@@ -1,17 +1,12 @@
 from pathlib import Path
 import pandas as pd
 
-def load_sensor(sensor, base_dir):
-    dfs = []
+def load_sensor(sensor, day_dir):
+    path = day_dir / f"{sensor}.csv"
+    if not path.exists():
+        return None
 
-    for day in sorted(Path(base_dir).iterdir()):
-        path = day / f"{sensor}.csv"
-        if path.exists():
-            df = pd.read_csv(path, usecols=["timestamp", "average"])
-            df["timestamp"] = pd.to_datetime(df["timestamp"])
-            df["timestamp"] = df["timestamp"].dt.floor("10min")
-            df = df.groupby("timestamp").first().reset_index()
-            df = df.rename(columns={"average": sensor})
-            dfs.append(df)
-
-    return pd.concat(dfs, ignore_index=True) if dfs else None
+    df = pd.read_csv(path, parse_dates=["timestamp"])
+    return df[["timestamp", "average"]].rename(
+        columns={"average": sensor}
+    )

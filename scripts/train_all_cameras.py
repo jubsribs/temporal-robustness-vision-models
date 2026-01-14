@@ -1,4 +1,4 @@
-from config import CAMERAS
+from config import CAMERAS,PROCESSED_DIR
 from pathlib import Path
 import pandas as pd
 import joblib
@@ -9,7 +9,7 @@ def train_all():
     for cam in CAMERAS:
         print(f"Treinando {cam}...")
 
-        data_dir = Path("data/processed") / cam
+        data_dir = Path(PROCESSED_DIR) / cam
         model_dir = Path("models") / cam
         model_dir.mkdir(parents=True, exist_ok=True)
 

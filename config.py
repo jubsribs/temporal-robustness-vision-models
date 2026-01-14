@@ -18,3 +18,5 @@ SENSORS = [
 ]
 
 BASE_DATA_DIR = "data/daily_raw"
+PROCESSED_DIR = "data/processed"
+SAMPLING_MINUTES = 10

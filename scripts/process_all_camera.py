@@ -1,4 +1,4 @@
-from config import CAMERAS
+from config import CAMERAS,PROCESSED_DIR
 from build_dataset import build_dataset
 from pathlib import Path
 
@@ -9,7 +9,7 @@ def process_all():
 
         df["week"] = df["time_block"].dt.isocalendar().week
 
-        out_dir = Path("data/processed") / cam
+        out_dir = Path(PROCESSED_DIR) / cam
         out_dir.mkdir(parents=True, exist_ok=True)
 
         for week, g in df.groupby("week"):
