@@ -40,7 +40,7 @@ def train_all():
             joblib.dump(model, model_dir / f"{csv.stem}.joblib")
 
         pd.DataFrame(results).to_csv(
-            f"results/{cam}_weekly.csv", index=False
+            f"data/results/{cam}_weekly.csv", index=False
         )
 
 if __name__ == "__main__":
