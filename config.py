@@ -1,3 +1,8 @@
+from pathlib import Path
+
+BASE_DIR = Path("data/daily_raw/scripts-to-data-collection")
+PROCESSED_DIR = Path("data/processed")
+
 CAMERAS = [
     "camera_alpha",
     "camera_beta",
@@ -5,18 +10,29 @@ CAMERAS = [
     "camera_sensor"
 ]
 
-SENSORS = [
-    "grove_gas_mq2_sensor",
-    "grove_light_sensor_v1_2",
-    "grove_loudness_sensor",
-    "bluetooth",
-    "motion_sensor",
-    "grove_dht11_sensor",
-    "grove_ir_thermal_sensor",
-    "grove_ultrasonic_ranger_sensor",
-    "grove_sunlight_sensor"
-]
+SENSORS = {
+    "grove_gas_mq2_sensor": ["average_gas"],
+    "grove_light_sensor_v1_2":["average_light"],
+    "grove_loudness_sensor":["average_loudness"],
+    "bluetooth": ["n_devices"],
+    "motion_sensor": ["motion"],
 
-BASE_DATA_DIR = "data/daily_raw"
-PROCESSED_DIR = "data/processed"
+    "grove_dht11_sensor": [
+        "average_temperature",
+        "average_humidity"
+    ],
+
+    "grove_ir_thermal_sensor": [
+        "average_object",
+        "average_ambient"
+    ],
+
+    "grove_sunlight_sensor": [
+        "average_visible",
+        "average_uv",
+        "average_ir"
+    ],
+    "grove_ultrasonic_ranger_sensor":["average_distance"]
+}
+
 SAMPLING_MINUTES = 10
