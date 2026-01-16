@@ -60,8 +60,6 @@ def train_all():
 
             # avalia SOMENTE na semana atual
             y_pred = model.predict(X_week)
-            model.fit(X, y)
-            y_pred = model.predict(X)
 
             results.append({
                 "camera": cam,
