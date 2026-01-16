@@ -1,6 +1,6 @@
-camera,week,samples,accuracy,f1
-camera_beta,week_39,331,1.0,1.0
-camera_beta,week_40,133,1.0,1.0
-camera_beta,week_41,107,1.0,0.0
-camera_beta,week_42,526,1.0,1.0
-camera_beta,week_43,514,1.0,1.0
+camera,week,train_samples,test_samples,accuracy,f1
+camera_beta,week_39,331,331,1.0,1.0
+camera_beta,week_40,464,133,1.0,1.0
+camera_beta,week_41,571,107,1.0,0.0
+camera_beta,week_42,1097,526,1.0,1.0
+camera_beta,week_43,1627,530,1.0,1.0

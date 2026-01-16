@@ -1,8 +1,8 @@
-camera,week,samples,accuracy,f1
-webcam_usb,week_37,237,1.0,1.0
-webcam_usb,week_38,672,1.0,1.0
-webcam_usb,week_39,432,1.0,1.0
-webcam_usb,week_40,672,1.0,1.0
-webcam_usb,week_41,672,1.0,1.0
-webcam_usb,week_42,424,1.0,1.0
-webcam_usb,week_43,190,1.0,1.0
+camera,week,train_samples,test_samples,accuracy,f1
+webcam_usb,week_37,237,237,1.0,1.0
+webcam_usb,week_38,909,672,1.0,1.0
+webcam_usb,week_39,1341,432,1.0,1.0
+webcam_usb,week_40,2013,672,1.0,1.0
+webcam_usb,week_41,2685,672,1.0,1.0
+webcam_usb,week_42,3109,424,1.0,1.0
+webcam_usb,week_43,3315,206,1.0,1.0
