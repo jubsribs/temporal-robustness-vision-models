@@ -38,8 +38,8 @@ def train_all():
             cumulative_X.append(X)
             cumulative_y.append(y)
 
-            X_train = pd.concat(X_accum, ignore_index=True)
-            y_train = pd.concat(y_accum, ignore_index=True)
+            X_train = pd.concat(cumulative_X, ignore_index=True)
+            y_train = pd.concat(cumulative_y, ignore_index=True)
 
             model = RandomForestClassifier(
                 n_estimators=300,
