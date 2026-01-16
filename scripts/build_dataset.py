@@ -31,6 +31,7 @@ def build_dataset(camera, week_dirs, out_file):
 
         for sensor in SENSORS:
             df = load_sensor(sensor, day_dir)
+            
             if df is not None:
                 df = normalize_timestamp(df)
                 if "ocupada" in df.columns:
