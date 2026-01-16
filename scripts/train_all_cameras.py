@@ -77,7 +77,7 @@ def train_all():
             out.mkdir(parents=True, exist_ok=True)
 
             pd.DataFrame(results).to_csv(
-                out / f"{cam}_weekly.csv",
+                out / f"{cam}_incremental.csv",
                 index=False
             )
 
