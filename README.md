@@ -122,6 +122,22 @@ Saturação de desempenho
 Impacto da distribuição das classes
 Robustez temporal do modelo
 
+# 🔧 Instalação das Dependências
+
+Requisitos do Sistema
+
+Python 3.10 ou superior
+
+**1. Criar ambiente virtual (recomendado)**
+python3 -m venv venv
+source venv/bin/activate
+
+**2. Atualizar o pip**
+pip install --upgrade pip
+
+**3. Instalar dependências do projeto**
+pip install -r requirements.txt
+
 # ▶️ Como Executar
 
 **1. Criar o symlink para os dados de coleta**
