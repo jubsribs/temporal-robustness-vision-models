@@ -12,10 +12,12 @@ def train_all():
         data_dir = Path("data/processed") / cam
         model_dir = Path("models") / cam
         model_dir.mkdir(parents=True, exist_ok=True)
-        model_path = model_dir / "rf_incremental.joblib"
+      
+        cumulative_X = []
+        cumulative_y = []
 
-        X_accum, y_accum = [], []
         results = []
+    
 
         for csv in sorted(data_dir.glob("week_*.csv")):
             print(f"  → Semana {csv.stem}")
@@ -26,61 +28,53 @@ def train_all():
                 print(f"[WARN] CSV inválido: {csv}")
                 continue
 
-            X_week = df.drop(columns=["ocupada", "timestamp"])
-            y_week = df["ocupada"]
+            X = df.drop(columns=["ocupada", "timestamp"])
+            y = df["ocupada"]
 
-            # remove linhas com NaN (sensores faltantes)
-            mask = X_week.notna().all(axis=1)
-            X_week, y_week = X_week[mask], y_week[mask]
-
-            if X_week.empty:
-                print(f"[WARN] Sem dados válidos após limpeza em {csv}")
-                continue
+            # garante consistência
+            X = X.fillna(0)
 
             # acumula dados
-            X_accum.append(X_week)
-            y_accum.append(y_week)
+            cumulative_X.append(X)
+            cumulative_y.append(y)
 
             X_train = pd.concat(X_accum, ignore_index=True)
             y_train = pd.concat(y_accum, ignore_index=True)
 
-            # carrega ou cria modelo
-            if model_path.exists():
-                model = joblib.load(model_path)
-            else:
-                model = RandomForestClassifier(
-                    n_estimators=300,
-                    random_state=42,
-                    class_weight="balanced",
-                    n_jobs=-1
-                )
+            model = RandomForestClassifier(
+                n_estimators=300,
+                random_state=42,
+                class_weight="balanced",
+                n_jobs=-1
+            )
 
-            # re-treina com histórico completo
             model.fit(X_train, y_train)
 
-            # avalia SOMENTE na semana atual
-            y_pred = model.predict(X_week)
+            y_pred = model.predict(X)
+            acc = accuracy_score(y, y_pred)
+            f1 = f1_score(y, y_pred, zero_division=0)
 
             results.append({
                 "camera": cam,
                 "week": csv.stem,
                 "train_samples": len(X_train),
-                "test_samples": len(X_week),
-                "accuracy": accuracy_score(y_week, y_pred),
-                "f1": f1_score(y_week, y_pred)
+                "test_samples": len(X),
+                "accuracy": acc,
+                "f1": f1
             })
 
-            joblib.dump(model, model_path)
+            joblib.dump(model, model_dir / f"{csv.stem}_cumulative.joblib")
+
+            print(f" {csv.stem}: train={len(X_train)}, test={len(X)}, acc={acc:.3f}, f1={f1:.3f}")
 
         if results:
             out = Path("data/results")
             out.mkdir(parents=True, exist_ok=True)
 
             pd.DataFrame(results).to_csv(
-                out / f"{cam}_incremental.csv",
+                out / f"{cam}_weekly_cumulative.csv",
                 index=False
             )
-
 if __name__ == "__main__":
     train_all()
 
