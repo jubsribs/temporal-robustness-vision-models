@@ -1,1 +1,8 @@
-
+camera,week,samples,accuracy,f1
+camera_sensor,week_37,244,1.0,1.0
+camera_sensor,week_38,672,1.0,1.0
+camera_sensor,week_39,670,1.0,1.0
+camera_sensor,week_40,672,1.0,1.0
+camera_sensor,week_41,672,1.0,1.0
+camera_sensor,week_42,671,1.0,1.0
+camera_sensor,week_43,602,1.0,1.0

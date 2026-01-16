@@ -4,6 +4,19 @@ from scripts.load_sensors import load_sensor
 from pathlib import Path
 import pandas as pd
 
+def normalize_timestamp(df):
+    if "timestamp" not in df.columns:
+        return None
+
+    df["timestamp"] = pd.to_numeric(df["timestamp"], errors="coerce")
+    df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s", errors="coerce")
+    df = df.dropna(subset=["timestamp"])
+
+    # Já arredonda aqui
+    df["timestamp"] = df["timestamp"].dt.floor("10min")
+    return df
+
+
 def build_dataset(camera, week_dirs, out_file):
     merged = []
 
@@ -12,11 +25,16 @@ def build_dataset(camera, week_dirs, out_file):
         if cam_df is None:
             continue
 
+        cam_df = normalize_timestamp(cam_df)
+        cam_df = cam_df.loc[:, ~cam_df.columns.duplicated()]
         dfs = [cam_df]
 
         for sensor in SENSORS:
             df = load_sensor(sensor, day_dir)
             if df is not None:
+                df = normalize_timestamp(df)
+                if "ocupada" in df.columns:
+                    df = df.drop(columns=["ocupada"])
                 dfs.append(df)
 
         day_df = dfs[0]
