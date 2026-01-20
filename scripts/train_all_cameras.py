@@ -65,7 +65,6 @@ def train_all():
             print("  → Criando modelo incremental inicial")
             model = SGDClassifier(
                 loss="log_loss",
-                class_weight="balanced",
                 random_state=42
             )
             model.partial_fit(
