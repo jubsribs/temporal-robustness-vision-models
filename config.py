@@ -2,6 +2,7 @@ from pathlib import Path
 
 BASE_DIR = Path("data/daily_raw/scripts-to-data-collection")
 PROCESSED_DIR = Path("data/processed")
+RESULTS_DIR = Path("data/results")
 
 CAMERAS = [
     "camera_alpha",
