@@ -49,31 +49,41 @@ def process_all():
     # Lista todos os dias disponíveis
     days = sorted([d for d in Path(BASE_DIR).iterdir() if d.is_dir()])
 
-    # Agrupa dias em semanas (listas de 7 dias)
-    weeks = [days[i:i+7] for i in range(0, len(days), 7)]
-
     for cam in CAMERAS:
         print(f"Processando {cam}...")
         out_dir = Path(PROCESSED_DIR) / cam
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        for i, week_dirs in enumerate(weeks, start=1):
-            # Caminho do CSV de saída
-            out_file = out_dir / f"week_{i:02d}.csv"
-            
-            # Chama build_dataset com semana completa
-            df = build_dataset(cam, week_dirs, out_file)
+        weekly_data = {}
+
+        for day_dir in days:
+            df = build_dataset(cam, [day_dir], None)
 
             if df is None or df.empty:
-                print(f"[WARN] Nenhum dado para {cam}, semana {i}")
                 continue
 
-            # Arredonda timestamps para janelas de 10 minutos
-            df = floor_to_10min(df)
+            if not pd.api.types.is_datetime64_any_dtype(df["timestamp"]):
+                df["timestamp"] = pd.to_datetime(df["timestamp"])
 
-            # Salva o CSV final
-            df.to_csv(out_file, index=False)
-            print(f"[INFO] Semana {i} processada para {cam}")
+            # Extrai semana ISO
+            iso = df["timestamp"].dt.isocalendar()
+            df["iso_year"] = iso.year
+            df["iso_week"] = iso.week
+
+            for (year, week), g in df.groupby(["iso_year", "iso_week"]):
+                key = f"week_{year}_{week:02d}"
+                weekly_data.setdefault(key, []).append(g)
+
+        # Salva semanas corretamente
+        for week_id, dfs in weekly_data.items():
+            week_df = pd.concat(dfs, ignore_index=True)
+            week_df = floor_to_10min(week_df)
+
+            out_file = out_dir / f"{week_id}.csv"
+            week_df.to_csv(out_file, index=False)
+
+            print(f"[INFO] {cam}: {week_id} salvo ({len(week_df)} linhas)")
+
 
 if __name__ == "__main__":
     process_all()
