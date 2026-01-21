@@ -1,9 +1,10 @@
 from pathlib import Path
-from config import CAMERAS
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, f1_score
-from config import PROCESSED_DIR
+from sklearn.metrics import accuracy_score, f1_score, recall_score
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+from config import PROCESSED_DIR, CAMERAS
 
 
 def train_batch(camera):
@@ -14,7 +15,6 @@ def train_batch(camera):
         print(f"[BATCH] {camera}: dados insuficientes")
         return
 
-    # Última semana = teste
     test_csv = csvs[-1]
     train_csvs = csvs[:-1]
 
@@ -38,11 +38,14 @@ def train_batch(camera):
     X_test = test_df.drop(columns=["ocupada", "timestamp"]).fillna(0)
     y_test = test_df["ocupada"]
 
-    model = LogisticRegression(
-        max_iter=1000,
-        class_weight="balanced",
-        n_jobs=-1
-    )
+    model = Pipeline([
+        ("scaler", StandardScaler()),
+        ("clf", LogisticRegression(
+            max_iter=3000,
+            class_weight="balanced",
+            solver="liblinear"
+        ))
+    ])
 
     model.fit(X_train, y_train)
 
@@ -50,6 +53,7 @@ def train_batch(camera):
 
     acc = accuracy_score(y_test, y_pred)
     f1 = f1_score(y_test, y_pred, zero_division=0)
+    recall = recall_score(y_test, y_pred, zero_division=0)
 
     print(
         f"[BATCH] {camera} | "
@@ -58,7 +62,8 @@ def train_batch(camera):
         f"test_week={test_csv.stem} | "
         f"test_samples={len(X_test)} | "
         f"acc={acc:.3f} | "
-        f"f1={f1:.3f}"
+        f"f1={f1:.3f} | "
+        f"recall={recall:.3f}"
     )
 
 
