@@ -1,4 +1,5 @@
 from pathlib import Path
+from config import CAMERAS
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, f1_score
@@ -59,3 +60,8 @@ def train_batch(camera):
         f"acc={acc:.3f} | "
         f"f1={f1:.3f}"
     )
+
+
+if __name__ == "__main__":
+    for cam in CAMERAS:
+        train_batch(cam)
