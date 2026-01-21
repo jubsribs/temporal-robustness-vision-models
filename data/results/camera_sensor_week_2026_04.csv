@@ -1,2 +1,2 @@
 camera,week,train_samples,test_samples,accuracy,f1
-camera_sensor,week_2026_04,111,28,1.0,0.0
+camera_sensor,week_2026_04,188,48,0.9791666666666666,0.0
