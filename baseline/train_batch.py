@@ -1,31 +1,61 @@
 from pathlib import Path
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import f1_score
+from sklearn.metrics import accuracy_score, f1_score
 from config import PROCESSED_DIR
 
 
 def train_batch(camera):
     data_dir = PROCESSED_DIR / camera
-    dfs = []
+    csvs = sorted(data_dir.glob("week_*.csv"))
 
-    for csv in sorted(data_dir.glob("week_*.csv")):
+    if len(csvs) < 2:
+        print(f"[BATCH] {camera}: dados insuficientes")
+        return
+
+    # Última semana = teste
+    test_csv = csvs[-1]
+    train_csvs = csvs[:-1]
+
+    train_dfs = []
+    for csv in train_csvs:
         df = pd.read_csv(csv)
         if "ocupada" in df.columns:
-            dfs.append(df)
+            train_dfs.append(df)
 
-    df = pd.concat(dfs, ignore_index=True)
+    test_df = pd.read_csv(test_csv)
 
-    X = df.drop(columns=["ocupada", "timestamp"]).fillna(0)
-    y = df["ocupada"]
+    if not train_dfs or test_df.empty:
+        print(f"[BATCH] {camera}: erro nos dados")
+        return
+
+    train_df = pd.concat(train_dfs, ignore_index=True)
+
+    X_train = train_df.drop(columns=["ocupada", "timestamp"]).fillna(0)
+    y_train = train_df["ocupada"]
+
+    X_test = test_df.drop(columns=["ocupada", "timestamp"]).fillna(0)
+    y_test = test_df["ocupada"]
 
     model = LogisticRegression(
         max_iter=1000,
-        class_weight="balanced"
+        class_weight="balanced",
+        n_jobs=-1
     )
-    model.fit(X, y)
 
-    y_pred = model.predict(X)
-    f1 = f1_score(y, y_pred)
+    model.fit(X_train, y_train)
 
-    print(f"[BATCH] {camera} F1={f1:.3f}")
+    y_pred = model.predict(X_test)
+
+    acc = accuracy_score(y_test, y_pred)
+    f1 = f1_score(y_test, y_pred, zero_division=0)
+
+    print(
+        f"[BATCH] {camera} | "
+        f"train_weeks={len(train_csvs)} | "
+        f"train_samples={len(X_train)} | "
+        f"test_week={test_csv.stem} | "
+        f"test_samples={len(X_test)} | "
+        f"acc={acc:.3f} | "
+        f"f1={f1:.3f}"
+    )
