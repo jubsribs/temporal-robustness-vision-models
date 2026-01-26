@@ -15,23 +15,13 @@ SENSORS = {
     "grove_gas_mq2_sensor": ["average_gas"],
     "grove_light_sensor_v1_2":["average_light"],
     "grove_loudness_sensor":["average_loudness"],
-    "bluetooth": ["n_devices"],
-    "motion_sensor": ["motion?"],
-
     "grove_dht11_sensor": [
         "average_temperature",
         "average_humidity"
     ],
-
     "grove_ir_thermal_sensor": [
         "average_object",
         "average_ambient"
-    ],
-
-    "grove_sunlight_sensor": [
-        "average_visible",
-        "average_uv",
-        "average_ir"
     ],
     "grove_ultrasonic_ranger_sensor":["average_distance"]
 }
