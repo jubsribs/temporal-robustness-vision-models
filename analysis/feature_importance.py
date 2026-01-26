@@ -78,7 +78,7 @@ def compute_feature_importance(camera):
     plt.figure(figsize=(6, 4))
     plt.barh(topk["feature"], topk["importance_norm"])
     plt.gca().invert_yaxis()
-    plt.xlabel("Importância normalizada")
+    plt.xlabel("Normalized Importance")
     plt.title(f"{camera} — Top 10 features")
 
     plt.tight_layout()
