@@ -16,7 +16,7 @@ SENSORS = {
     "grove_light_sensor_v1_2":["average_light"],
     "grove_loudness_sensor":["average_loudness"],
     "bluetooth": ["n_devices"],
-    "motion_sensor": ["motion"],
+    "motion_sensor": ["motion?"],
 
     "grove_dht11_sensor": [
         "average_temperature",
