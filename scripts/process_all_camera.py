@@ -77,6 +77,11 @@ def process_all():
         # Salva semanas corretamente
         for week_id, dfs in weekly_data.items():
             week_df = pd.concat(dfs, ignore_index=True)
+             # REMOVE colunas auxiliares de tempo
+            week_df = week_df.drop(
+                columns=[c for c in ["iso_year", "iso_week"] if c in week_df.columns]
+            )
+
             week_df = floor_to_10min(week_df)
 
             out_file = out_dir / f"{week_id}.csv"
