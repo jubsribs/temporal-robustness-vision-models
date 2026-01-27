@@ -10,6 +10,7 @@ from sklearn.metrics import (
     recall_score,
     ConfusionMatrixDisplay,
 )
+from sklearn.model_selection import train_test_split
 
 # Diretórios
 FUSED_DIR = Path("data/fused")
@@ -27,23 +28,40 @@ def train_fused_random_forest():
         print("[WARN] Dados insuficientes para treino")
         return
 
-    # split temporal
-    test_csv = csvs[-1]
-    train_csvs = csvs[:-1]
+    dfs = []
+    for csv in csvs:
+        df = pd.read_csv(csv)
+        if "ocupada" in df.columns:
+            dfs.append(df)
 
-    train_df = pd.concat(
-        [pd.read_csv(c) for c in train_csvs],
-        ignore_index=True
+    if not dfs:
+        print("[WARN] Nenhum dado válido encontrado")
+        return
+
+    df = pd.concat(dfs, ignore_index=True)
+
+    X = (
+    df
+    .drop(columns=["timestamp", "ocupada"], errors="ignore")
+    .select_dtypes(include=["number"])
+    .fillna(0)
     )
 
-    test_df = pd.read_csv(test_csv)
+    y = df["ocupada"]
 
-    # Features e alvo
-    X_train = train_df.drop(columns=["timestamp", "ocupada"]).fillna(0)
-    y_train = train_df["ocupada"]
+    if X.empty or y.empty:
+        print("[WARN] Dataset vazio após pré-processamento")
+        return
 
-    X_test = test_df.drop(columns=["timestamp", "ocupada"]).fillna(0)
-    y_test = test_df["ocupada"]
+
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X,
+        y,
+        test_size=0.20,      # 20% teste
+        random_state=42,
+        stratify=y if y.nunique() > 1 else None
+    )
 
     # Modelo
     model = RandomForestClassifier(
@@ -55,6 +73,21 @@ def train_fused_random_forest():
 
     model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
+    acc = accuracy_score(y_test, y_pred)
+    f1 = f1_score(y_test, y_pred, zero_division=0)
+    recall = recall_score(y_test, y_pred, zero_division=0)
+    precision = precision_score(y_test, y_pred, zero_division=0)
+
+    print(
+        f"[FUSED RF] "
+        f"samples={len(df)} | "
+        f"train={len(X_train)} | "
+        f"test={len(X_test)} | "
+        f"acc={acc:.3f} | "
+        f"f1={f1:.3f} | "
+        f"recall={recall:.3f} | "
+        f"precision={precision:.3f}"
+    )
 
     # Métricas
     metrics = {
