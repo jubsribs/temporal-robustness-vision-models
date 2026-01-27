@@ -73,7 +73,11 @@ def fuse_week(week_id: str):
 
 def main():
     alpha_dir = PROCESSED_DIR / "camera_alpha"
-    weeks = sorted(p.stem for p in alpha_dir.glob("week_*.csv"))
+    weeks = sorted(p.stem for p in alpha_dir.glob("week_????_??.csv"))
+
+    if not weeks:
+        print("[WARN] Nenhuma semana encontrada")
+        return
 
     for week_id in weeks:
         fuse_week(week_id)
