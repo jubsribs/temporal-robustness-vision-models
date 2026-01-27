@@ -1,85 +1,68 @@
 from pathlib import Path
 import pandas as pd
-from config import PROCESSED_DIR
 
+PROCESSED_DIR = Path("data/processed")
 OUT_DIR = Path("data/fused")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-SENSOR_COLS = [
-    "average_humidity",
-    "average_gas",
-    "average_light",
-    "average_loudness",
-    "average_temperature",
-    "average_object",
-    "average_ambient",
-    "average_distance",
-]
+CAM_ALPHA = "camera_alpha"
+CAM_BETA = "camera_beta"
+
+
+def safe_load_occupancy(csv_path: Path):
+    df = pd.read_csv(csv_path, parse_dates=["timestamp"])
+
+    if "ocupada" not in df.columns:
+        df["ocupada"] = 0
+
+    return df[["timestamp", "ocupada"]]
+
 
 def fuse_week(week_id: str):
-    alpha_csv = PROCESSED_DIR / "camera_alpha" / f"{week_id}.csv"
-    beta_csv = PROCESSED_DIR / "camera_beta" / f"{week_id}.csv"
+    alpha_csv = PROCESSED_DIR / CAM_ALPHA / f"{week_id}.csv"
+    beta_csv = PROCESSED_DIR / CAM_BETA / f"{week_id}.csv"
 
     if not alpha_csv.exists() or not beta_csv.exists():
-        print(f"[WARN] Semana {week_id}: arquivos ausentes")
+        print(f"[SKIP] {week_id}: alpha ou beta ausente")
         return
 
-    df_a = pd.read_csv(alpha_csv)
-    df_b = pd.read_csv(beta_csv)
+    df_a = safe_load_occupancy(alpha_csv)
+    df_b = safe_load_occupancy(beta_csv)
 
-    # validações mínimas
-    for name, df in [("alpha", df_a), ("beta", df_b)]:
-        if "timestamp" not in df.columns or "ocupada" not in df.columns:
-            raise ValueError(f"{name} sem colunas necessárias")
-
-    # merge por timestamp
     df = df_a.merge(
         df_b,
         on="timestamp",
-        how="inner",
+        how="outer",
         suffixes=("_alpha", "_beta")
-    )
+    ).fillna(0)
 
-    # OR lógico
-    df["ocupada_fused"] = (
+    # OR lógico (late fusion)
+    df["ocupada"] = (
         (df["ocupada_alpha"] == 1) |
         (df["ocupada_beta"] == 1)
     ).astype(int)
 
-    fused_sensors = {}
+    df_out = df[["timestamp", "ocupada"]].sort_values("timestamp")
 
-    for col in SENSOR_COLS:
-        a = f"{col}_alpha"
-        b = f"{col}_beta"
+    out_file = OUT_DIR / f"{week_id}.csv"
+    df_out.to_csv(out_file, index=False)
 
-        if a in df.columns and b in df.columns:
-            fused_sensors[col] = df[a].where(df[a] == df[b])
-        else:
-            print(f"[INFO] {week_id}: sensor ausente → {col}")
-
-    # Dataset final
-    out_df = pd.DataFrame({
-        "timestamp": df["timestamp"],
-        "ocupada": df["ocupada"],
-        **fused_sensors
-    })
-
-
-    out_file = OUT_DIR / f"{week_id}_alpha_beta.csv"
-    out_df.to_csv(out_file, index=False)
-
-    print(f"[OK] Fusão salva: {out_file}")
+    print(f"[OK] {week_id}: fusão salva ({len(df_out)} linhas)")
 
 
 def main():
-    alpha_dir = PROCESSED_DIR / "camera_alpha"
-    weeks = sorted(p.stem for p in alpha_dir.glob("week_????_??.csv"))
+    alpha_dir = PROCESSED_DIR / CAM_ALPHA
 
-    if not weeks:
+    week_ids = sorted(
+        f.stem
+        for f in alpha_dir.glob("week_????_??.csv")
+    )
+
+    if not week_ids:
         print("[WARN] Nenhuma semana encontrada")
         return
 
-    for week_id in weeks:
+    for week_id in week_ids:
         fuse_week(week_id)
 
 
