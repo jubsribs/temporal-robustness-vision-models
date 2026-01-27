@@ -21,7 +21,7 @@ FIG_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def train_fused_random_forest():
-    csvs = sorted(FUSED_DIR.glob("week_*_alpha_beta.csv"))
+    csvs = sorted(FUSED_DIR.glob("week_*.csv"))
 
     if len(csvs) < 2:
         print("[WARN] Dados insuficientes para treino")
