@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, f1_score, recall_score
+from sklearn.metrics import accuracy_score, f1_score, recall_score,precision_score
 
 from config import PROCESSED_DIR,RESULTS_DIR
 
@@ -69,6 +69,7 @@ def train_camera_monthly(camera):
 
         acc = accuracy_score(y_test, y_pred)
         f1 = f1_score(y_test, y_pred, zero_division=0)
+        precision = precision_score(y_test, y_pred, zero_division=0)
         recall = recall_score(y_test, y_pred, zero_division=0)
 
         results.append({
@@ -78,13 +79,14 @@ def train_camera_monthly(camera):
             "test_samples": len(X_test),
             "accuracy": acc,
             "f1": f1,
+            "precision": precision,
             "recall": recall
         })
 
         print(
             f"[MONTHLY] {camera} {month} | "
             f"train={len(X_train)} | test={len(X_test)} | "
-            f"acc={acc:.3f} | f1={f1:.3f} | recall={recall:.3f}"
+            f"acc={acc:.3f} | f1={f1:.3f} | recall={recall:.3f} | precision={precision:.3f}"
         )
 
     return results
@@ -118,4 +120,5 @@ if __name__ == "__main__":
         for cam in CAMERAS:
             plot_metric(df, cam, "accuracy")
             plot_metric(df, cam, "f1")
+            plot_metric(df, cam, "precision")
             plot_metric(df, cam, "recall")
