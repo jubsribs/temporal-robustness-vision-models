@@ -98,7 +98,7 @@ def plot_metric(df, camera, metric):
     plt.xticks(rotation=45)
     plt.ylabel(metric)
     plt.xlabel("Mês")
-    plt.title(f"{camera} — {metric} mensal")
+    plt.title(f"{camera} — {metric} week")
     plt.tight_layout()
 
     plt.savefig(FIG_DIR / f"{camera}_{metric}.png")
