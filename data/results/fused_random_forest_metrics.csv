@@ -1,0 +1,2 @@
+accuracy,precision,recall,f1,train_samples,test_samples,train_weeks,test_week,n_features
+1.0,0.0,0.0,0.0,2503,37,5,week_2026_05,13
