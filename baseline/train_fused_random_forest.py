@@ -10,69 +10,101 @@ from sklearn.metrics import (
     recall_score,
     ConfusionMatrixDisplay,
 )
-from sklearn.model_selection import train_test_split
+from config import RESULTS_DIR
 
 # Diretórios
 FUSED_DIR = Path("data/fused")
-RESULTS_DIR = Path("data/results")
 FIG_DIR = Path("analysis/figures")
 
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 FIG_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def train_fused_random_forest():
+def _load_fused_csv(csv_path: Path) -> pd.DataFrame:
+    df = pd.read_csv(csv_path, parse_dates=["timestamp"], low_memory=False)
+
+    if "ocupada" not in df.columns:
+        # Se acontecer, considera como inválido
+        raise ValueError(f"{csv_path.name} não tem coluna 'ocupada'")
+
+    # Normaliza target
+    df["ocupada"] = pd.to_numeric(df["ocupada"], errors="coerce").fillna(0).astype(int)
+    return df
+
+
+def train_fused_random_forest(test_week: str | None = None):
     csvs = sorted(FUSED_DIR.glob("week_*.csv"))
 
     if len(csvs) < 2:
-        print("[WARN] Dados insuficientes para treino")
+        print("[WARN] Precisas de pelo menos 2 semanas fused para treinar/testar por semana.")
         return
 
-    dfs = []
-    for csv in csvs:
-        df = pd.read_csv(csv)
-        if "ocupada" in df.columns:
-            dfs.append(df)
+    # Escolhe semana de teste (por defeito: última)
+    if test_week is None:
+        test_csv = csvs[-1]
+    else:
+        matches = [p for p in csvs if p.stem == test_week or p.name == test_week]
+        if not matches:
+            print(f"[WARN] test_week '{test_week}' não encontrado em {FUSED_DIR}")
+            return
+        test_csv = matches[0]
 
-    if not dfs:
-        print("[WARN] Nenhum dado válido encontrado")
+    train_csvs = [p for p in csvs if p != test_csv]
+
+    # Carrega treino
+    train_dfs = []
+    for p in train_csvs:
+        try:
+            train_dfs.append(_load_fused_csv(p))
+        except Exception as e:
+            print(f"[SKIP] {p.name}: {e}")
+
+    # Carrega teste
+    try:
+        df_test = _load_fused_csv(test_csv)
+    except Exception as e:
+        print(f"[WARN] Semana de teste inválida ({test_csv.name}): {e}")
         return
 
-    df = pd.concat(dfs, ignore_index=True)
+    if not train_dfs:
+        print("[WARN] Nenhum CSV fused válido para treino.")
+        return
 
-    X = (
-    df
-    .drop(columns=["timestamp", "ocupada"], errors="ignore")
-    .select_dtypes(include=["number"])
-    .fillna(0)
+    df_train = pd.concat(train_dfs, ignore_index=True)
+
+    # Features: mantém apenas numéricas e remove timestamp/ocupada
+    X_train = (
+        df_train.drop(columns=["timestamp", "ocupada"], errors="ignore")
+        .select_dtypes(include=["number"])
+        .fillna(0)
     )
+    y_train = df_train["ocupada"]
 
-    y = df["ocupada"]
+    X_test = (
+        df_test.drop(columns=["timestamp", "ocupada"], errors="ignore")
+        .select_dtypes(include=["number"])
+        .fillna(0)
+    )
+    y_test = df_test["ocupada"]
 
-    if X.empty or y.empty:
-        print("[WARN] Dataset vazio após pré-processamento")
+    if X_train.empty or X_test.empty:
+        print("[WARN] Features vazias após pré-processamento (confere colunas numéricas).")
         return
 
-
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X,
-        y,
-        test_size=0.20,      # 20% teste
-        random_state=42,
-        stratify=y if y.nunique() > 1 else None
-    )
+    # Alinha colunas (garante que train e test têm as mesmas features)
+    X_test = X_test.reindex(columns=X_train.columns, fill_value=0)
 
     # Modelo
     model = RandomForestClassifier(
         n_estimators=300,
         random_state=42,
         class_weight="balanced",
-        n_jobs=-1
+        n_jobs=-1,
     )
 
     model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
+
     acc = accuracy_score(y_test, y_pred)
     f1 = f1_score(y_test, y_pred, zero_division=0)
     recall = recall_score(y_test, y_pred, zero_division=0)
@@ -80,62 +112,60 @@ def train_fused_random_forest():
 
     print(
         f"[FUSED RF] "
-        f"samples={len(df)} | "
-        f"train={len(X_train)} | "
-        f"test={len(X_test)} | "
+        f"train_samples={len(df_train)} | "
+        f"test_samples={len(df_test)} | "
+        f"test_week={test_csv.stem} | "
         f"acc={acc:.3f} | "
         f"f1={f1:.3f} | "
         f"recall={recall:.3f} | "
         f"precision={precision:.3f}"
     )
 
-    # Métricas
     metrics = {
-        "accuracy": accuracy_score(y_test, y_pred),
-        "precision": precision_score(y_test, y_pred, zero_division=0),
-        "recall": recall_score(y_test, y_pred, zero_division=0),
-        "f1": f1_score(y_test, y_pred, zero_division=0),
-        "train_samples": len(X_train),
-        "test_samples": len(X_test),
-        "test_week": test_csv.stem
+        "accuracy": acc,
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+        "train_samples": len(df_train),
+        "test_samples": len(df_test),
+        "train_weeks": len(train_csvs),
+        "test_week": test_csv.stem,
+        "n_features": X_train.shape[1],
     }
 
-    # Salva CSV
+    # Salva métricas
     pd.DataFrame([metrics]).to_csv(
         RESULTS_DIR / "fused_random_forest_metrics.csv",
-        index=False
+        index=False,
     )
-
-    print("[OK] Métricas salvas em CSV")
+    print("[OK] Métricas salvas em data/results/fused_random_forest_metrics.csv")
 
     # =========================
-    # 📊 GRÁFICO DE MÉTRICAS
+    # GRÁFICO DE MÉTRICAS
     # =========================
     plt.figure(figsize=(6, 4))
     plt.bar(
         ["accuracy", "precision", "recall", "f1"],
-        [metrics[m] for m in ["accuracy", "precision", "recall", "f1"]]
+        [metrics[m] for m in ["accuracy", "precision", "recall", "f1"]],
     )
     plt.ylim(0, 1)
     plt.ylabel("Score")
     plt.title("Random Forest — Fused Alpha + Beta")
     plt.tight_layout()
-
     plt.savefig(FIG_DIR / "fused_metrics_bar.png")
     plt.close()
 
     # =========================
-    # 🔲 MATRIZ DE CONFUSÃO
+    # MATRIZ DE CONFUSÃO
     # =========================
     disp = ConfusionMatrixDisplay.from_predictions(
         y_test,
         y_pred,
         display_labels=["Livre", "Ocupado"],
         cmap="Blues",
-        normalize=None
+        normalize=None,
     )
-    disp.ax_.set_title("Confusion Matrix — Fused Random Forest")
-
+    disp.ax_.set_title(f"Confusion Matrix — Fused RF ({test_csv.stem})")
     plt.tight_layout()
     plt.savefig(FIG_DIR / "fused_confusion_matrix.png")
     plt.close()
@@ -144,4 +174,7 @@ def train_fused_random_forest():
 
 
 if __name__ == "__main__":
+    # por defeito usa a última semana como teste
     train_fused_random_forest()
+    # se quiseres escolher:
+    # train_fused_random_forest(test_week="week_2026_04")
