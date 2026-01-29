@@ -233,7 +233,7 @@ def plot_metric(df: pd.DataFrame, camera: str, metric: str, suffix: str):
     plt.title(f"{camera} — {suffix} (weekly)")
     plt.tight_layout()
 
-    plt.savefig(FIG_DIR / f"{camera}_{suffix}_weekly.png")
+    plt.savefig(FIG_DIR / f"{camera}_{suffix}_sgd_weekly.png")
     plt.close()
 
 
@@ -247,7 +247,7 @@ if __name__ == "__main__":
         df = pd.DataFrame(all_results)
 
         # Guarda CSV com valores numéricos + colunas display_*
-        df.to_csv(RESULTS_DIR / "weekly_rf_with_absence.csv", index=False)
+        df.to_csv(RESULTS_DIR / "weekly_sgd_with_absence.csv", index=False)
 
         for cam in CAMERAS:
             # global
@@ -263,6 +263,6 @@ if __name__ == "__main__":
             plot_metric(df, cam, "recall_absence", "recall_absence")
             plot_metric(df, cam, "f1_absence", "f1_absence")
 
-        print("[OK] Resultados salvos em data/results/weekly_rf_with_absence.csv e figuras em analysis/figures/")
+        print("[OK] Resultados salvos em data/results/weekly_sgd_with_absence.csv e figuras em analysis/figures/")
     else:
         print("[WARN] Nenhum resultado gerado")

@@ -153,10 +153,10 @@ def train_fused_random_forest(random_state: int = 42):
 
     # ✅ CSV apenas com números (sem “◯”)
     pd.DataFrame([metrics_raw]).to_csv(
-        RESULTS_DIR / "fused_random_forest_metrics.csv",
+        RESULTS_DIR / "fused_sgd_metrics.csv",
         index=False,
     )
-    print("[OK] Métricas salvas em data/results/fused_random_forest_metrics.csv")
+    print("[OK] Métricas salvas em data/results/fused_sgd_metrics.csv")
 
     # =========================
     # GRÁFICO DE MÉTRICAS (com “círculo oco” quando 0/NaN)
@@ -181,7 +181,7 @@ def train_fused_random_forest(random_state: int = 42):
     plt.bar(x, values)
     plt.ylim(0, 1)
     plt.ylabel("Score")
-    plt.title("Random Forest — Fused (80/20)")
+    plt.title("Stochastic Gradient Descent — Fused (80/20)")
     plt.xticks(x, labels, rotation=30, ha="right")
 
     # desenha círculo oco por cima do label quando a métrica for 0/NaN
@@ -195,7 +195,7 @@ def train_fused_random_forest(random_state: int = 42):
             )
 
     plt.tight_layout()
-    plt.savefig(FIG_DIR / "fused_metrics_bar.png")
+    plt.savefig(FIG_DIR / "fused_metrics_bar_sgd.png")
     plt.close()
 
     # =========================
@@ -208,9 +208,9 @@ def train_fused_random_forest(random_state: int = 42):
         cmap="Blues",
         normalize=None,
     )
-    disp.ax_.set_title("Confusion Matrix — Fused RF (80/20)")
+    disp.ax_.set_title("Confusion Matrix — Fused Stochastic Gradient Descent (80/20)")
     plt.tight_layout()
-    plt.savefig(FIG_DIR / "fused_confusion_matrix.png")
+    plt.savefig(FIG_DIR / "fused_confusion_matrix_sgd.png")
     plt.close()
 
     print("[OK] Gráficos salvos em analysis/figures")
