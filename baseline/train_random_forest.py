@@ -1,10 +1,16 @@
 from pathlib import Path
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, f1_score, recall_score, precision_score
+from sklearn.metrics import (
+    accuracy_score,
+    f1_score,
+    recall_score,
+    precision_score,
+)
 
 from config import PROCESSED_DIR, RESULTS_DIR
 
@@ -22,6 +28,53 @@ def week_id_from_stem(stem: str) -> str:
         return stem
     _, year, week = parts
     return f"{year}-W{int(week):02d}"
+
+
+def metric_value(y_true, y_pred, which: str, pos_label: int):
+    """
+    which: 'precision' | 'recall' | 'f1'
+    pos_label: 1 (ocupado) ou 0 (ausência)
+    Regras:
+      - se der indefinido (denominador zero) -> NaN
+      - se der 0 (numerador zero) -> 0
+    """
+    if which == "precision":
+        return precision_score(y_true, y_pred, pos_label=pos_label, zero_division=np.nan)
+    if which == "recall":
+        return recall_score(y_true, y_pred, pos_label=pos_label, zero_division=np.nan)
+    if which == "f1":
+        return f1_score(y_true, y_pred, pos_label=pos_label, zero_division=np.nan)
+    raise ValueError("which inválido")
+
+
+def display_or_circle(x):
+    # Círculo se:
+    # - NaN (indefinido/denominador zero)
+    # - ou 0 (numerador zero)
+    if x is None:
+        return "◯"
+    try:
+        if np.isnan(x):
+            return "◯"
+    except Exception:
+        pass
+    if x == 0:
+        return "◯"
+    return f"{float(x):.4f}"
+
+
+def plot_value_or_nan(x):
+    # Omitir do gráfico se 0 ou NaN
+    if x is None:
+        return np.nan
+    try:
+        if np.isnan(x):
+            return np.nan
+    except Exception:
+        pass
+    if x == 0:
+        return np.nan
+    return float(x)
 
 
 def train_camera_weekly(camera: str):
@@ -47,6 +100,7 @@ def train_camera_weekly(camera: str):
             .select_dtypes(include=["number"])
             .fillna(0)
         )
+        print(f" features treinadas com a tabela", X)
         y = pd.to_numeric(df["ocupada"], errors="coerce").fillna(0).astype(int)
 
         if X.empty or y.empty:
@@ -74,12 +128,20 @@ def train_camera_weekly(camera: str):
         model.fit(X_train, y_train)
         y_pred = model.predict(X_test)
 
-        acc = accuracy_score(y_test, y_pred)
-        f1 = f1_score(y_test, y_pred, zero_division=0)
-        precision = precision_score(y_test, y_pred, zero_division=0)
-        recall = recall_score(y_test, y_pred, zero_division=0)
-
         week_id = week_id_from_stem(csv.stem)
+
+        # Métrica global
+        acc = accuracy_score(y_test, y_pred)
+
+        # Métricas para Ocupado (1)
+        prec_occ = metric_value(y_test, y_pred, "precision", pos_label=1)
+        rec_occ = metric_value(y_test, y_pred, "recall", pos_label=1)
+        f1_occ = metric_value(y_test, y_pred, "f1", pos_label=1)
+
+        # Métricas para Ausência (0)
+        prec_abs = metric_value(y_test, y_pred, "precision", pos_label=0)
+        rec_abs = metric_value(y_test, y_pred, "recall", pos_label=0)
+        f1_abs = metric_value(y_test, y_pred, "f1", pos_label=0)
 
         results.append(
             {
@@ -89,33 +151,60 @@ def train_camera_weekly(camera: str):
                 "train_samples": len(X_train),
                 "test_samples": len(X_test),
                 "accuracy": acc,
-                "f1": f1,
-                "precision": precision,
-                "recall": recall,
+
+                # Ocupado (1)
+                "precision_ocupado": prec_occ,
+                "recall_ocupado": rec_occ,
+                "f1_ocupado": f1_occ,
+
+                # Ausência (0)
+                "precision_ausencia": prec_abs,
+                "recall_ausencia": rec_abs,
+                "f1_ausencia": f1_abs,
+
+                # “display” (◯ quando 0 ou indefinido)
+                "display_precision_ocupado": display_or_circle(prec_occ),
+                "display_recall_ocupado": display_or_circle(rec_occ),
+                "display_f1_ocupado": display_or_circle(f1_occ),
+                "display_precision_ausencia": display_or_circle(prec_abs),
+                "display_recall_ausencia": display_or_circle(rec_abs),
+                "display_f1_ausencia": display_or_circle(f1_abs),
             }
         )
 
         print(
             f"[WEEKLY] {camera} {week_id} | "
-            f"train={len(X_train)} | test={len(X_test)} | "
-            f"acc={acc:.3f} | f1={f1:.3f} | recall={recall:.3f} | precision={precision:.3f}"
+            f"train={len(X_train)} | test={len(X_test)} | acc={acc:.3f} | "
+            f"occ(p={prec_occ if not np.isnan(prec_occ) else 'NaN'} "
+            f"r={rec_occ if not np.isnan(rec_occ) else 'NaN'} "
+            f"f1={f1_occ if not np.isnan(f1_occ) else 'NaN'}) | "
+            f"abs(p={prec_abs if not np.isnan(prec_abs) else 'NaN'} "
+            f"r={rec_abs if not np.isnan(rec_abs) else 'NaN'} "
+            f"f1={f1_abs if not np.isnan(f1_abs) else 'NaN'})"
         )
 
     return results
 
 
-def plot_metric(df: pd.DataFrame, camera: str, metric: str):
-    cam_df = df[df["camera"] == camera].sort_values("week")
+def plot_metric(df: pd.DataFrame, camera: str, metric: str, suffix: str):
+    """
+    metric: coluna numérica a plotar
+    suffix: nome no ficheiro
+    Omitimos 0 e NaN (transformamos para NaN antes de plotar).
+    """
+    cam_df = df[df["camera"] == camera].sort_values("week").copy()
+    cam_df[metric] = cam_df[metric].apply(plot_value_or_nan)
 
     plt.figure()
     plt.plot(cam_df["week"], cam_df[metric], marker="o")
     plt.xticks(rotation=45)
+    plt.ylim(0, 1)
     plt.ylabel(metric)
     plt.xlabel("Week")
-    plt.title(f"{camera} — {metric} (weekly)")
+    plt.title(f"{camera} — {suffix} (weekly) — (0/indef omitido)")
     plt.tight_layout()
 
-    plt.savefig(FIG_DIR / f"{camera}_{metric}_weekly.png")
+    plt.savefig(FIG_DIR / f"{camera}_{suffix}_weekly.png")
     plt.close()
 
 
@@ -127,14 +216,24 @@ if __name__ == "__main__":
 
     if all_results:
         df = pd.DataFrame(all_results)
-        df.to_csv(RESULTS_DIR / "weekly_rf.csv", index=False)
+
+        # Guarda CSV com valores numéricos + colunas display_*
+        df.to_csv(RESULTS_DIR / "weekly_rf_with_absence.csv", index=False)
 
         for cam in CAMERAS:
-            plot_metric(df, cam, "accuracy")
-            plot_metric(df, cam, "f1")
-            plot_metric(df, cam, "precision")
-            plot_metric(df, cam, "recall")
+            # global
+            plot_metric(df, cam, "accuracy", "accuracy")
 
-        print("[OK] Resultados salvos em data/results/weekly_rf.csv e figuras em analysis/figures/")
+            # ocupado (1)
+            plot_metric(df, cam, "precision_ocupado", "precision_ocupado")
+            plot_metric(df, cam, "recall_ocupado", "recall_ocupado")
+            plot_metric(df, cam, "f1_ocupado", "f1_ocupado")
+
+            # ausência (0)
+            plot_metric(df, cam, "precision_ausencia", "precision_ausencia")
+            plot_metric(df, cam, "recall_ausencia", "recall_ausencia")
+            plot_metric(df, cam, "f1_ausencia", "f1_ausencia")
+
+        print("[OK] Resultados salvos em data/results/weekly_rf_with_absence.csv e figuras em analysis/figures/")
     else:
         print("[WARN] Nenhum resultado gerado")

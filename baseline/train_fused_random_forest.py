@@ -1,15 +1,19 @@
 from pathlib import Path
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
 from sklearn.metrics import (
     accuracy_score,
     f1_score,
     precision_score,
     recall_score,
     ConfusionMatrixDisplay,
+    classification_report,
 )
+
 from config import RESULTS_DIR
 
 # Diretórios
@@ -24,80 +28,74 @@ def _load_fused_csv(csv_path: Path) -> pd.DataFrame:
     df = pd.read_csv(csv_path, parse_dates=["timestamp"], low_memory=False)
 
     if "ocupada" not in df.columns:
-        # Se acontecer, considera como inválido
         raise ValueError(f"{csv_path.name} não tem coluna 'ocupada'")
 
-    # Normaliza target
     df["ocupada"] = pd.to_numeric(df["ocupada"], errors="coerce").fillna(0).astype(int)
     return df
 
 
-def train_fused_random_forest(test_week: str | None = None):
-    csvs = sorted(FUSED_DIR.glob("week_*.csv"))
+def _display_or_circle(x: float) -> str:
+    # Marca com círculo quando:
+    # - indefinido (NaN)
+    # - ou valor exatamente 0 (numerador zero, conforme pedido)
+    if x is None or (isinstance(x, float) and np.isnan(x)) or x == 0:
+        return "◯"
+    return f"{x:.4f}"
 
-    if len(csvs) < 2:
-        print("[WARN] Precisas de pelo menos 2 semanas fused para treinar/testar por semana.")
+
+def _plot_value_or_nan(x: float) -> float:
+    # Omitir do gráfico se for 0 ou NaN
+    if x is None or (isinstance(x, float) and np.isnan(x)) or x == 0:
+        return np.nan
+    return float(x)
+
+
+def train_fused_random_forest(random_state: int = 42):
+    csvs = sorted(FUSED_DIR.glob("week_*.csv"))
+    if not csvs:
+        print("[WARN] Nenhum CSV found em data/fused")
         return
 
-    # Escolhe semana de teste (por defeito: última)
-    if test_week is None:
-        test_csv = csvs[-1]
-    else:
-        matches = [p for p in csvs if p.stem == test_week or p.name == test_week]
-        if not matches:
-            print(f"[WARN] test_week '{test_week}' não encontrado em {FUSED_DIR}")
-            return
-        test_csv = matches[0]
-
-    train_csvs = [p for p in csvs if p != test_csv]
-
-    # Carrega treino
-    train_dfs = []
-    for p in train_csvs:
+    # Carrega tudo (já fused)
+    dfs = []
+    for p in csvs:
         try:
-            train_dfs.append(_load_fused_csv(p))
+            dfs.append(_load_fused_csv(p))
         except Exception as e:
             print(f"[SKIP] {p.name}: {e}")
 
-    # Carrega teste
-    try:
-        df_test = _load_fused_csv(test_csv)
-    except Exception as e:
-        print(f"[WARN] Semana de teste inválida ({test_csv.name}): {e}")
-        return
-
-    if not train_dfs:
+    if not dfs:
         print("[WARN] Nenhum CSV fused válido para treino.")
         return
 
-    df_train = pd.concat(train_dfs, ignore_index=True)
+    df = pd.concat(dfs, ignore_index=True)
 
-    # Features: mantém apenas numéricas e remove timestamp/ocupada
-    X_train = (
-        df_train.drop(columns=["timestamp", "ocupada"], errors="ignore")
+    # Features (numéricas) + target
+    X = (
+        df.drop(columns=["timestamp", "ocupada"], errors="ignore")
         .select_dtypes(include=["number"])
         .fillna(0)
     )
-    y_train = df_train["ocupada"]
+    print(f" features treinadas com a tabela",X)
+    y = df["ocupada"]
 
-    X_test = (
-        df_test.drop(columns=["timestamp", "ocupada"], errors="ignore")
-        .select_dtypes(include=["number"])
-        .fillna(0)
-    )
-    y_test = df_test["ocupada"]
-
-    if X_train.empty or X_test.empty:
-        print("[WARN] Features vazias após pré-processamento (confere colunas numéricas).")
+    if X.empty or y.empty:
+        print("[WARN] Dataset vazio após pré-processamento.")
         return
 
-    # Alinha colunas (garante que train e test têm as mesmas features)
-    X_test = X_test.reindex(columns=X_train.columns, fill_value=0)
+    # split 80/20 global
+    strat = y if (y.nunique() > 1 and y.value_counts().min() >= 2) else None
+    X_train, X_test, y_train, y_test = train_test_split(
+        X,
+        y,
+        test_size=0.20,
+        random_state=random_state,
+        stratify=strat,
+    )
 
-    # Modelo
     model = RandomForestClassifier(
         n_estimators=300,
-        random_state=42,
+        random_state=random_state,
         class_weight="balanced",
         n_jobs=-1,
     )
@@ -105,52 +103,103 @@ def train_fused_random_forest(test_week: str | None = None):
     model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
 
+    # Métricas globais
     acc = accuracy_score(y_test, y_pred)
-    f1 = f1_score(y_test, y_pred, zero_division=0)
-    recall = recall_score(y_test, y_pred, zero_division=0)
-    precision = precision_score(y_test, y_pred, zero_division=0)
+
+    # Métricas por classe (1 = Ocupado, 0 = Ausência/Livre)
+    # zero_division=np.nan para capturar indefinições
+    prec_occ = precision_score(y_test, y_pred, pos_label=1, zero_division=np.nan)
+    rec_occ = recall_score(y_test, y_pred, pos_label=1, zero_division=np.nan)
+    f1_occ = f1_score(y_test, y_pred, pos_label=1, zero_division=np.nan)
+
+    prec_abs = precision_score(y_test, y_pred, pos_label=0, zero_division=np.nan)
+    rec_abs = recall_score(y_test, y_pred, pos_label=0, zero_division=np.nan)
+    f1_abs = f1_score(y_test, y_pred, pos_label=0, zero_division=np.nan)
 
     print(
-        f"[FUSED RF] "
-        f"train_samples={len(df_train)} | "
-        f"test_samples={len(df_test)} | "
-        f"test_week={test_csv.stem} | "
-        f"acc={acc:.3f} | "
-        f"f1={f1:.3f} | "
-        f"recall={recall:.3f} | "
-        f"precision={precision:.3f}"
+        f"[FUSED RF 80/20] samples={len(df)} | "
+        f"train={len(X_train)} | test={len(X_test)} | "
+        f"acc={acc:.3f}"
+    )
+    print(
+        f"  Ocupado(1): precision={prec_occ if not np.isnan(prec_occ) else 'NaN'} | "
+        f"recall={rec_occ if not np.isnan(rec_occ) else 'NaN'} | "
+        f"f1={f1_occ if not np.isnan(f1_occ) else 'NaN'}"
+    )
+    print(
+        f"  Ausência(0): precision={prec_abs if not np.isnan(prec_abs) else 'NaN'} | "
+        f"recall={rec_abs if not np.isnan(rec_abs) else 'NaN'} | "
+        f"f1={f1_abs if not np.isnan(f1_abs) else 'NaN'}"
     )
 
-    metrics = {
-        "accuracy": acc,
-        "precision": precision,
-        "recall": recall,
-        "f1": f1,
-        "train_samples": len(df_train),
-        "test_samples": len(df_test),
-        "train_weeks": len(train_csvs),
-        "test_week": test_csv.stem,
+    # Report completo (opcional mas útil)
+    report = classification_report(
+        y_test,
+        y_pred,
+        labels=[0, 1],
+        target_names=["Absence(0)", "Occupied(1)"],
+        zero_division=np.nan,
+        output_dict=True,
+    )
+
+    # Métricas (raw)
+    metrics_raw = {
+        "split": "80/20",
+        "random_state": random_state,
+        "samples_total": len(df),
+        "train_samples": len(X_train),
+        "test_samples": len(X_test),
         "n_features": X_train.shape[1],
+        "accuracy": acc,
+        # Ocupado (1)
+        "precision_ocupado": prec_occ,
+        "recall_ocupado": rec_occ,
+        "f1_ocupado": f1_occ,
+        # Ausência (0)
+        "precision_ausencia": prec_abs,
+        "recall_ausencia": rec_abs,
+        "f1_ausencia": f1_abs,
+        # suporte (para contexto)
+        "support_ausencia": int(report["Absence(0)"]["support"]) if "Absence(0)" in report else None,
+        "support_ocupado": int(report["Occupied(1)"]["support"]) if "Occupied(1)" in report else None,
     }
 
-    # Salva métricas
-    pd.DataFrame([metrics]).to_csv(
+    # Métricas para “display” (com ◯)
+    metrics_display = {k: _display_or_circle(v) if isinstance(v, (float, int, np.floating, np.integer)) else v
+                       for k, v in metrics_raw.items()}
+
+    # Salva CSV (raw + display lado a lado)
+    out_df = pd.DataFrame([metrics_raw])
+    out_df_display = pd.DataFrame([metrics_display]).add_prefix("display__")
+    pd.concat([out_df, out_df_display], axis=1).to_csv(
         RESULTS_DIR / "fused_random_forest_metrics.csv",
         index=False,
     )
     print("[OK] Métricas salvas em data/results/fused_random_forest_metrics.csv")
 
     # =========================
-    # GRÁFICO DE MÉTRICAS
+    # GRÁFICOS (omitindo 0 e NaN)
     # =========================
-    plt.figure(figsize=(6, 4))
-    plt.bar(
-        ["accuracy", "precision", "recall", "f1"],
-        [metrics[m] for m in ["accuracy", "precision", "recall", "f1"]],
-    )
+    # 1) barras: accuracy + métricas por classe
+    plot_vals = {
+        "accuracy": _plot_value_or_nan(acc),
+        "prec_ocupado": _plot_value_or_nan(prec_occ),
+        "rec_ocupado": _plot_value_or_nan(rec_occ),
+        "f1_ocupado": _plot_value_or_nan(f1_occ),
+        "prec_ausencia": _plot_value_or_nan(prec_abs),
+        "rec_ausencia": _plot_value_or_nan(rec_abs),
+        "f1_ausencia": _plot_value_or_nan(f1_abs),
+    }
+
+    labels = list(plot_vals.keys())
+    values = [plot_vals[k] for k in labels]
+
+    plt.figure(figsize=(10, 4))
+    plt.bar(labels, values)
     plt.ylim(0, 1)
     plt.ylabel("Score")
-    plt.title("Random Forest — Fused Alpha + Beta")
+    plt.title("Random Forest — Fused (80/20) — (0 e indefinidos omitidos)")
+    plt.xticks(rotation=30, ha="right")
     plt.tight_layout()
     plt.savefig(FIG_DIR / "fused_metrics_bar.png")
     plt.close()
@@ -161,11 +210,11 @@ def train_fused_random_forest(test_week: str | None = None):
     disp = ConfusionMatrixDisplay.from_predictions(
         y_test,
         y_pred,
-        display_labels=["Livre", "Ocupado"],
+        display_labels=["Absence(0)", "Occupied(1)"],
         cmap="Blues",
         normalize=None,
     )
-    disp.ax_.set_title(f"Confusion Matrix — Fused RF ({test_csv.stem})")
+    disp.ax_.set_title("Confusion Matrix — Fused RF (80/20)")
     plt.tight_layout()
     plt.savefig(FIG_DIR / "fused_confusion_matrix.png")
     plt.close()
@@ -174,7 +223,4 @@ def train_fused_random_forest(test_week: str | None = None):
 
 
 if __name__ == "__main__":
-    # por defeito usa a última semana como teste
     train_fused_random_forest()
-    # se quiseres escolher:
-    # train_fused_random_forest(test_week="week_2026_04")
