@@ -111,7 +111,7 @@ def train_fused_sgd(random_state: int = 42):
     f1_abs = f1_score(y_test, y_pred, pos_label=0, zero_division=np.nan)
 
     print(
-        f"[FUSED RF 80/20] samples={len(df)} | "
+        f"[FUSED SGD 80/20] samples={len(df)} | "
         f"train={len(X_train)} | test={len(X_test)} | acc={acc:.3f}"
     )
 
