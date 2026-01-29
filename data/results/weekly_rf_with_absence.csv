@@ -1,4 +1,4 @@
-camera,week,file,train_samples,test_samples,accuracy,precision_ocupado,recall_ocupado,f1_ocupado,precision_ausencia,recall_ausencia,f1_ausencia,display_precision_ocupado,display_recall_ocupado,display_f1_ocupado,display_precision_ausencia,display_recall_ausencia,display_f1_ausencia
+camera,week,file,train_samples,test_samples,accuracy,precision_occupied,recall_occupied,f1_occupied,precision_absence,recall_absence,f1_absence,display_precision_occupied,display_recall_occupied,display_f1_occupied,display_precision_absence,display_recall_absence,display_f1_absence
 camera_alpha,2025-W51,week_2025_51.csv,371,93,0.9354838709677419,0.6666666666666666,0.9090909090909091,0.7692307692307693,0.9871794871794872,0.9390243902439024,0.9625,0.6667,0.9091,0.7692,0.9872,0.9390,0.9625
 camera_alpha,2026-W01,week_2026_01.csv,227,57,1.0,,,,1.0,1.0,1.0,◯,◯,◯,1.0000,1.0000,1.0000
 camera_alpha,2026-W02,week_2026_02.csv,408,102,0.9803921568627451,1.0,0.3333333333333333,0.5,0.9801980198019802,1.0,0.99,1.0000,0.3333,0.5000,0.9802,1.0000,0.9900
