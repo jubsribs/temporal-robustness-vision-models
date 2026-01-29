@@ -42,7 +42,11 @@ def train_all():
             print(f"[WARN] CSV inválido: {csv_path}")
             continue
 
-        X = df.drop(columns=["ocupada", "timestamp"]).fillna(0)
+        X = (
+        df.drop(columns=["timestamp", "ocupada"], errors="ignore")
+        .select_dtypes(include=["number"])
+        .fillna(0)
+    )
         y = df["ocupada"]
 
         if y.nunique() < 2:

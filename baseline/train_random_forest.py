@@ -153,22 +153,22 @@ def train_camera_weekly(camera: str):
                 "accuracy": acc,
 
                 # Ocupado (1)
-                "precision_ocupado": prec_occ,
-                "recall_ocupado": rec_occ,
-                "f1_ocupado": f1_occ,
+                "precision_occupied": prec_occ,
+                "recall_occupied": rec_occ,
+                "f1_occupied": f1_occ,
 
                 # Ausência (0)
-                "precision_ausencia": prec_abs,
-                "recall_ausencia": rec_abs,
-                "f1_ausencia": f1_abs,
+                "precision_absence": prec_abs,
+                "recall_absence": rec_abs,
+                "f1_absence": f1_abs,
 
                 # “display” (◯ quando 0 ou indefinido)
-                "display_precision_ocupado": display_or_circle(prec_occ),
-                "display_recall_ocupado": display_or_circle(rec_occ),
-                "display_f1_ocupado": display_or_circle(f1_occ),
-                "display_precision_ausencia": display_or_circle(prec_abs),
-                "display_recall_ausencia": display_or_circle(rec_abs),
-                "display_f1_ausencia": display_or_circle(f1_abs),
+                "display_precision_occupied": display_or_circle(prec_occ),
+                "display_recall_occupied": display_or_circle(rec_occ),
+                "display_f1_occupied": display_or_circle(f1_occ),
+                "display_precision_absence": display_or_circle(prec_abs),
+                "display_recall_absence": display_or_circle(rec_abs),
+                "display_f1_absence": display_or_circle(f1_abs),
             }
         )
 
@@ -190,18 +190,47 @@ def plot_metric(df: pd.DataFrame, camera: str, metric: str, suffix: str):
     """
     metric: coluna numérica a plotar
     suffix: nome no ficheiro
-    Omitimos 0 e NaN (transformamos para NaN antes de plotar).
+    Regras:
+      - valores válidos: traça linha + marcadores normais
+      - valores 0 ou NaN: desenha um círculo oco no gráfico (marker circular)
     """
     cam_df = df[df["camera"] == camera].sort_values("week").copy()
-    cam_df[metric] = cam_df[metric].apply(plot_value_or_nan)
+
+    # y original
+    y_raw = cam_df[metric].astype(float).to_numpy()
+
+    # inválidos: 0 ou NaN
+    invalid_mask = np.isnan(y_raw) | (y_raw == 0)
+
+    # linha: inválidos viram NaN (para a linha quebrar nesses pontos)
+    y_line = y_raw.copy()
+    y_line[invalid_mask] = np.nan
+
+    x = cam_df["week"].to_numpy()
 
     plt.figure()
-    plt.plot(cam_df["week"], cam_df[metric], marker="o")
+
+    # Linha com pontos válidos
+    plt.plot(x, y_line, marker="o")
+
+    # Marcadores circulares (ocos) nos pontos inválidos
+    if invalid_mask.any():
+        x_bad = x[invalid_mask]
+        # coloca o círculo ligeiramente acima do 0 para ficar visível
+        y_bad = np.full(len(x_bad), 0.02)
+
+        plt.scatter(
+            x_bad,
+            y_bad,
+            marker="o",
+            facecolors="none",   # círculo oco
+        )
+
     plt.xticks(rotation=45)
     plt.ylim(0, 1)
     plt.ylabel(metric)
     plt.xlabel("Week")
-    plt.title(f"{camera} — {suffix} (weekly) — (0/indef omitido)")
+    plt.title(f"{camera} — {suffix} (weekly)")
     plt.tight_layout()
 
     plt.savefig(FIG_DIR / f"{camera}_{suffix}_weekly.png")
@@ -224,15 +253,15 @@ if __name__ == "__main__":
             # global
             plot_metric(df, cam, "accuracy", "accuracy")
 
-            # ocupado (1)
-            plot_metric(df, cam, "precision_ocupado", "precision_ocupado")
-            plot_metric(df, cam, "recall_ocupado", "recall_ocupado")
-            plot_metric(df, cam, "f1_ocupado", "f1_ocupado")
+            # occupied (1)
+            plot_metric(df, cam, "precision_occupied", "precision_occupied")
+            plot_metric(df, cam, "recall_occupied", "recall_occupied")
+            plot_metric(df, cam, "f1_occupied", "f1_occupied")
 
             # ausência (0)
-            plot_metric(df, cam, "precision_ausencia", "precision_ausencia")
-            plot_metric(df, cam, "recall_ausencia", "recall_ausencia")
-            plot_metric(df, cam, "f1_ausencia", "f1_ausencia")
+            plot_metric(df, cam, "precision_absence", "precision_absence")
+            plot_metric(df, cam, "recall_absence", "recall_absence")
+            plot_metric(df, cam, "f1_absence", "f1_absence")
 
         print("[OK] Resultados salvos em data/results/weekly_rf_with_absence.csv e figuras em analysis/figures/")
     else:

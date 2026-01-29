@@ -34,20 +34,21 @@ def _load_fused_csv(csv_path: Path) -> pd.DataFrame:
     return df
 
 
-def _display_or_circle(x: float) -> str:
-    # Marca com círculo quando:
-    # - indefinido (NaN)
-    # - ou valor exatamente 0 (numerador zero, conforme pedido)
-    if x is None or (isinstance(x, float) and np.isnan(x)) or x == 0:
-        return "◯"
-    return f"{x:.4f}"
+def _is_bad_metric(x: float) -> bool:
+    # “mau” = 0 (numerador zero) OU NaN (indefinição/denominador zero)
+    if x is None:
+        return True
+    try:
+        if np.isnan(x):
+            return True
+    except Exception:
+        pass
+    return x == 0
 
 
-def _plot_value_or_nan(x: float) -> float:
-    # Omitir do gráfico se for 0 ou NaN
-    if x is None or (isinstance(x, float) and np.isnan(x)) or x == 0:
-        return np.nan
-    return float(x)
+def _value_or_nan(x: float) -> float:
+    # Para barras: se for mau, mete NaN para a barra não aparecer
+    return np.nan if _is_bad_metric(x) else float(x)
 
 
 def train_fused_random_forest(random_state: int = 42):
@@ -56,7 +57,6 @@ def train_fused_random_forest(random_state: int = 42):
         print("[WARN] Nenhum CSV found em data/fused")
         return
 
-    # Carrega tudo (já fused)
     dfs = []
     for p in csvs:
         try:
@@ -76,7 +76,6 @@ def train_fused_random_forest(random_state: int = 42):
         .select_dtypes(include=["number"])
         .fillna(0)
     )
-    print(f" features treinadas com a tabela",X)
     y = df["ocupada"]
 
     if X.empty or y.empty:
@@ -118,21 +117,10 @@ def train_fused_random_forest(random_state: int = 42):
 
     print(
         f"[FUSED RF 80/20] samples={len(df)} | "
-        f"train={len(X_train)} | test={len(X_test)} | "
-        f"acc={acc:.3f}"
-    )
-    print(
-        f"  Ocupado(1): precision={prec_occ if not np.isnan(prec_occ) else 'NaN'} | "
-        f"recall={rec_occ if not np.isnan(rec_occ) else 'NaN'} | "
-        f"f1={f1_occ if not np.isnan(f1_occ) else 'NaN'}"
-    )
-    print(
-        f"  Ausência(0): precision={prec_abs if not np.isnan(prec_abs) else 'NaN'} | "
-        f"recall={rec_abs if not np.isnan(rec_abs) else 'NaN'} | "
-        f"f1={f1_abs if not np.isnan(f1_abs) else 'NaN'}"
+        f"train={len(X_train)} | test={len(X_test)} | acc={acc:.3f}"
     )
 
-    # Report completo (opcional mas útil)
+    # Report (para suportes)
     report = classification_report(
         y_test,
         y_pred,
@@ -142,7 +130,6 @@ def train_fused_random_forest(random_state: int = 42):
         output_dict=True,
     )
 
-    # Métricas (raw)
     metrics_raw = {
         "split": "80/20",
         "random_state": random_state,
@@ -152,54 +139,61 @@ def train_fused_random_forest(random_state: int = 42):
         "n_features": X_train.shape[1],
         "accuracy": acc,
         # Ocupado (1)
-        "precision_ocupado": prec_occ,
-        "recall_ocupado": rec_occ,
-        "f1_ocupado": f1_occ,
+        "precision_occupied": prec_occ,
+        "recall_occupied": rec_occ,
+        "f1_occupied": f1_occ,
         # Ausência (0)
-        "precision_ausencia": prec_abs,
-        "recall_ausencia": rec_abs,
-        "f1_ausencia": f1_abs,
-        # suporte (para contexto)
-        "support_ausencia": int(report["Absence(0)"]["support"]) if "Absence(0)" in report else None,
-        "support_ocupado": int(report["Occupied(1)"]["support"]) if "Occupied(1)" in report else None,
+        "precision_absence": prec_abs,
+        "recall_absence": rec_abs,
+        "f1_absence": f1_abs,
+        # suporte (contexto)
+        "support_absence": int(report["Absence(0)"]["support"]) if "Absence(0)" in report else None,
+        "support_occupied": int(report["Occupied(1)"]["support"]) if "Occupied(1)" in report else None,
     }
 
-    # Métricas para “display” (com ◯)
-    metrics_display = {k: _display_or_circle(v) if isinstance(v, (float, int, np.floating, np.integer)) else v
-                       for k, v in metrics_raw.items()}
-
-    # Salva CSV (raw + display lado a lado)
-    out_df = pd.DataFrame([metrics_raw])
-    out_df_display = pd.DataFrame([metrics_display]).add_prefix("display__")
-    pd.concat([out_df, out_df_display], axis=1).to_csv(
+    # ✅ CSV apenas com números (sem “◯”)
+    pd.DataFrame([metrics_raw]).to_csv(
         RESULTS_DIR / "fused_random_forest_metrics.csv",
         index=False,
     )
     print("[OK] Métricas salvas em data/results/fused_random_forest_metrics.csv")
 
     # =========================
-    # GRÁFICOS (omitindo 0 e NaN)
+    # GRÁFICO DE MÉTRICAS (com “círculo oco” quando 0/NaN)
     # =========================
-    # 1) barras: accuracy + métricas por classe
-    plot_vals = {
-        "accuracy": _plot_value_or_nan(acc),
-        "prec_ocupado": _plot_value_or_nan(prec_occ),
-        "rec_ocupado": _plot_value_or_nan(rec_occ),
-        "f1_ocupado": _plot_value_or_nan(f1_occ),
-        "prec_ausencia": _plot_value_or_nan(prec_abs),
-        "rec_ausencia": _plot_value_or_nan(rec_abs),
-        "f1_ausencia": _plot_value_or_nan(f1_abs),
+    plot_vals_raw = {
+        "accuracy": acc,
+        "prec_occupied": prec_occ,
+        "rec_occupied": rec_occ,
+        "f1_occupied": f1_occ,
+        "prec_absence": prec_abs,
+        "rec_absence": rec_abs,
+        "f1_absence": f1_abs,
     }
 
-    labels = list(plot_vals.keys())
-    values = [plot_vals[k] for k in labels]
+    labels = list(plot_vals_raw.keys())
+    raw_values = [plot_vals_raw[k] for k in labels]
+    values = [_value_or_nan(v) for v in raw_values]  # NaN onde for mau
 
     plt.figure(figsize=(10, 4))
-    plt.bar(labels, values)
+    x = np.arange(len(labels))
+
+    plt.bar(x, values)
     plt.ylim(0, 1)
     plt.ylabel("Score")
-    plt.title("Random Forest — Fused (80/20) — (0 e indefinidos omitidos)")
-    plt.xticks(rotation=30, ha="right")
+    plt.title("Random Forest — Fused (80/20)")
+    plt.xticks(x, labels, rotation=30, ha="right")
+
+    # desenha círculo oco por cima do label quando a métrica for 0/NaN
+    for i, v in enumerate(raw_values):
+        if _is_bad_metric(v):
+            plt.scatter(
+                [i],
+                [0.05],            # altura fixa para ficar visível (ajusta se quiseres)
+                marker="o",
+                facecolors="none", # círculo oco
+            )
+
     plt.tight_layout()
     plt.savefig(FIG_DIR / "fused_metrics_bar.png")
     plt.close()
