@@ -51,7 +51,7 @@ def _value_or_nan(x: float) -> float:
     return np.nan if _is_bad_metric(x) else float(x)
 
 
-def train_fused_random_forest(random_state: int = 42):
+def train_fused_sgd(random_state: int = 42):
     csvs = sorted(FUSED_DIR.glob("week_*.csv"))
     if not csvs:
         print("[WARN] Nenhum CSV found em data/fused")
@@ -92,12 +92,7 @@ def train_fused_random_forest(random_state: int = 42):
         stratify=strat,
     )
 
-    model = SGDClassifier(
-        n_estimators=300,
-        random_state=random_state,
-        class_weight="balanced",
-        n_jobs=-1,
-    )
+    model = SGDClassifier( loss="log_loss", random_state=42)
 
     model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
@@ -217,4 +212,4 @@ def train_fused_random_forest(random_state: int = 42):
 
 
 if __name__ == "__main__":
-    train_fused_random_forest()
+    train_fused_sgd()

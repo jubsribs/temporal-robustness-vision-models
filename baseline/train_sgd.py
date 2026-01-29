@@ -118,12 +118,7 @@ def train_camera_weekly(camera: str):
             stratify=strat,
         )
 
-        model = SGDClassifier(
-            n_estimators=300,
-            random_state=42,
-            class_weight="balanced",
-            n_jobs=-1,
-        )
+        model = SGDClassifier(loss="log_loss", random_state=42)
 
         model.fit(X_train, y_train)
         y_pred = model.predict(X_test)
