@@ -20,6 +20,27 @@ def load_latest_model(model_dir: Path):
         return None
     return joblib.load(models[-1])
 
+def build_X(df: pd.DataFrame) -> pd.DataFrame:
+    X = (
+        df.drop(columns=["timestamp", "ocupada"], errors="ignore")
+          .select_dtypes(include=["number"])
+          .fillna(0)
+    )
+    # garantir nomes consistentes (opcional, mas ajuda)
+    X.columns = X.columns.astype(str)
+    return X
+
+def align_features_to_model(X: pd.DataFrame, model) -> pd.DataFrame:
+    # Se o modelo ainda não tem features guardadas, não alinha
+    if not hasattr(model, "feature_names_in_"):
+        return X
+
+    expected = list(model.feature_names_in_)
+    # Reindex: cria colunas em falta com 0 e descarta extras
+    X_aligned = X.reindex(columns=expected, fill_value=0)
+    return X_aligned
+
+
 def train_all():
     week_id = current_week_id()
     print(f"Processando semana atual: {week_id}")
@@ -42,44 +63,38 @@ def train_all():
             print(f"[WARN] CSV inválido: {csv_path}")
             continue
 
-        X = (
-        df.drop(columns=["timestamp", "ocupada"], errors="ignore")
-        .select_dtypes(include=["number"])
-        .fillna(0)
-    )
+        X = build_X(df)
         y = df["ocupada"]
 
         if y.nunique() < 2:
             print("[WARN] Apenas uma classe presente. Pulando treino.")
             continue
 
-        #  split entre dados de treino e teste (treina com um e faz a validacao com o outro)
-        X_train, X_test, y_train, y_test = train_test_split(
-            X,
-            y,
-            test_size=0.2,
-            random_state=42,
-            stratify=y 
-        )
-
-         # Carrega modelo anterior
+        # Carrega modelo anterior
         model = load_latest_model(model_dir)
 
         if model is None:
             print("  → Criando modelo incremental inicial")
-            model = SGDClassifier(
-                loss="log_loss",
-                random_state=42
+            model = SGDClassifier(loss="log_loss", random_state=42)
+
+            # split
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=0.2, random_state=42, stratify=y
             )
-            model.partial_fit(
-                X_train,
-                y_train,
-                classes=np.array([0, 1])
-            )
+
+            model.partial_fit(X_train, y_train, classes=np.array([0, 1]))
+
         else:
             print("Atualizando modelo com dados de treino da semana")
-            model.partial_fit(X_train, y_train)
 
+            # Alinha X às features do modelo ANTES do split, para consistência total
+            X = align_features_to_model(X, model)
+
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=0.2, random_state=42, stratify=y
+            )
+
+            model.partial_fit(X_train, y_train)
 
         y_pred = model.predict(X_test)
         acc = accuracy_score(y_test, y_pred)
