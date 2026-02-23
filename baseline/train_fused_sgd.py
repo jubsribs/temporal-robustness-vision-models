@@ -94,8 +94,42 @@ def train_fused_sgd(random_state: int = 42):
 
     model = SGDClassifier( loss="log_loss", random_state=42)
 
+    # =========================
+    # TEMPO + MEMÓRIA TREINO
+    # =========================
+    tracemalloc.start()
+    start_train = time.perf_counter()
+
     model.fit(X_train, y_train)
+
+    train_time = time.perf_counter() - start_train
+    current, peak_memory = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    # =========================
+    # TEMPO PREDIÇÃO
+    # =========================
+    start_pred = time.perf_counter()
     y_pred = model.predict(X_test)
+    predict_time = time.perf_counter() - start_pred
+
+    # =========================
+    # TAMANHO DO MODELO
+    # =========================
+    tmp_model = "rf_temp.pkl"
+    with open(tmp_model, "wb") as f:
+        pickle.dump(model, f)
+
+    model_size_mb = os.path.getsize(tmp_model) / (1024 * 1024)
+    os.remove(tmp_model)
+
+    print(
+        f"[PERFORMANCE] "
+        f"train_time={train_time:.4f}s | "
+        f"predict_time={predict_time:.4f}s | "
+        f"peak_memory={peak_memory / (1024*1024):.2f}MB | "
+        f"model_size={model_size_mb:.2f}MB"
+    )
 
     # Métricas globais
     acc = accuracy_score(y_test, y_pred)
@@ -132,16 +166,17 @@ def train_fused_sgd(random_state: int = 42):
         "train_samples": len(X_train),
         "test_samples": len(X_test),
         "n_features": X_train.shape[1],
+        "train_time_sec": train_time,
+        "predict_time_sec": predict_time,
+        "peak_memory_MB": peak_memory / (1024 * 1024),
+        "model_size_MB": model_size_mb,
         "accuracy": acc,
-        # Ocupado (1)
         "precision_occupied": prec_occ,
         "recall_occupied": rec_occ,
         "f1_occupied": f1_occ,
-        # Ausência (0)
         "precision_absence": prec_abs,
         "recall_absence": rec_abs,
         "f1_absence": f1_abs,
-        # suporte (contexto)
         "support_absence": int(report["Absence(0)"]["support"]) if "Absence(0)" in report else None,
         "support_occupied": int(report["Occupied(1)"]["support"]) if "Occupied(1)" in report else None,
     }
