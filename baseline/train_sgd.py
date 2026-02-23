@@ -1,9 +1,10 @@
-from pathlib import Path
-from datetime import datetime
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from pathlib import Path
+from datetime import datetime
 from sklearn.linear_model import SGDClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import (
@@ -13,13 +14,15 @@ from sklearn.metrics import (
     precision_score,
 )
 
-from config import PROCESSED_DIR, RESULTS_DIR
+from config import PROCESSED_DIR
 
 CAMERAS = ["camera_alpha", "camera_beta"]
-FIG_DIR = Path("analysis/figures")
+FIG_DIR = Path("analysis/figures/sgd")
 
-RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+FIG_DIR = FIG_DIR / timestamp
 FIG_DIR.mkdir(parents=True, exist_ok=True)
+
 
 
 def week_id_from_stem(stem: str) -> str:
@@ -228,7 +231,7 @@ if __name__ == "__main__":
     if all_results:
         df = pd.DataFrame(all_results)
 
-        out_csv = RESULTS_DIR / "weekly_sgd_incremental_with_absence.csv"
+        out_csv = FIG_DIR / "weekly_sgd_incremental_with_absence.csv"
         df.to_csv(out_csv, index=False)
 
         for cam in CAMERAS:

@@ -1,8 +1,9 @@
-from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from pathlib import Path
+from datetime import datetime
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import (
@@ -12,12 +13,13 @@ from sklearn.metrics import (
     precision_score,
 )
 
-from config import PROCESSED_DIR, RESULTS_DIR
+from config import PROCESSED_DIR
 
 CAMERAS = ["camera_alpha", "camera_beta"]
-FIG_DIR = Path("analysis/figures")
+FIG_DIR = Path("analysis/figures/random_forest")
 
-RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+FIG_DIR = FIG_DIR / timestamp
 FIG_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -247,7 +249,8 @@ if __name__ == "__main__":
         df = pd.DataFrame(all_results)
 
         # Guarda CSV com valores numéricos + colunas display_*
-        df.to_csv(RESULTS_DIR / "weekly_rf_with_absence.csv", index=False)
+        out_csv = FIG_DIR / "weekly_rf_with_absence.csv"
+        df.to_csv(out_csv, index=False)
 
         for cam in CAMERAS:
             # global
@@ -263,6 +266,6 @@ if __name__ == "__main__":
             plot_metric(df, cam, "recall_absence", "recall_absence")
             plot_metric(df, cam, "f1_absence", "f1_absence")
 
-        print("[OK] Resultados salvos em data/results/weekly_rf_with_absence.csv e figuras em analysis/figures/")
+        print(f"[OK] Resultados: {out_csv} | Figuras: {FIG_DIR}/")
     else:
         print("[WARN] Nenhum resultado gerado")

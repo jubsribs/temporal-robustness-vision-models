@@ -7,6 +7,7 @@ import pickle
 import os
 
 from pathlib import Path
+from datetime import datetime
 from sklearn.linear_model import SGDClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import (
@@ -18,13 +19,13 @@ from sklearn.metrics import (
     classification_report,
 )
 
-from config import RESULTS_DIR
 
 # Diretórios
 FUSED_DIR = Path("data/fused")
-FIG_DIR = Path("analysis/figures")
+FIG_DIR = Path("analysis/figures/sgd_fused")
 
-RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+FIG_DIR = FIG_DIR / timestamp
 FIG_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -187,10 +188,10 @@ def train_fused_sgd(random_state: int = 42):
 
     # ✅ CSV apenas com números (sem “◯”)
     pd.DataFrame([metrics_raw]).to_csv(
-        RESULTS_DIR / "fused_sgd_metrics.csv",
+        FIG_DIR / "fused_sgd_metrics.csv",
         index=False,
     )
-    print("[OK] Métricas salvas em data/results/fused_sgd_metrics.csv")
+    print("[OK] Métricas salvas em", FIG_DIR)
 
     # =========================
     # GRÁFICO DE MÉTRICAS (com “círculo oco” quando 0/NaN)
@@ -247,7 +248,7 @@ def train_fused_sgd(random_state: int = 42):
     plt.savefig(FIG_DIR / "fused_confusion_matrix_sgd.png")
     plt.close()
 
-    print("[OK] Gráficos salvos em analysis/figures")
+    print("[OK] Gráficos salvos", FIG_DIR)
 
 
 if __name__ == "__main__":
