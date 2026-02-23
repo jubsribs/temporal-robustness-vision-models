@@ -75,13 +75,17 @@ def compute_feature_importance(camera):
     # Plot Top-10
     topk = imp_df.head(10)
 
-    plt.figure(figsize=(6, 4))
-    plt.barh(topk["feature"], topk["importance_norm"])
-    plt.gca().invert_yaxis()
-    plt.xlabel("Normalized Importance")
+    plt.figure(figsize=(8, 4))
+
+    plt.bar(topk["feature"], topk["importance_norm"])
+
+    plt.xticks(rotation=45, ha="right")
+    plt.ylabel("Normalized Importance")
+    plt.xlabel("Feature")
     plt.title(f"{camera} — Top 10 features")
 
     plt.tight_layout()
+
     plt.savefig(OUT_DIR / f"{camera}_feature_importance.png")
     plt.close()
 
