@@ -81,9 +81,35 @@ def train_fused_random_forest(random_state: int = 42):
 
     df = pd.concat(dfs, ignore_index=True)
 
+    # ======================================================
+    # FEATURE ENGINEERING — VARIAÇÕES RELATIVAS
+    # ======================================================
+
+    relative_cols = [
+        "average_temperature",
+        "average_ambient",
+        "average_object",
+        "average_humidity",
+        "average_gas",
+    ]
+
+    for col in relative_cols:
+        if col in df.columns:
+            mean_val = df[col].mean()
+            if mean_val != 0:
+                df[f"{col}_delta_pct"] = (df[col] - mean_val) / mean_val
+            else:
+                df[f"{col}_delta_pct"] = 0
+
+    # Contraste térmico (importante para ocupação humana)
+    if "average_object" in df.columns and "average_ambient" in df.columns:
+        df["thermal_contrast"] = df["average_object"] - df["average_ambient"]
+
+    print("[INFO] Features relativas criadas.")
+
     # Features (numéricas) + target
     X = (
-        df.drop(columns=["timestamp", "ocupada","average_light"], errors="ignore")
+        df.drop(columns=["timestamp", "ocupada"], errors="ignore")
         .select_dtypes(include=["number"])
         .fillna(0)
     )
