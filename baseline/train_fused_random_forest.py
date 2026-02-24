@@ -21,11 +21,18 @@ from sklearn.metrics import (
 
 # Diretórios
 FUSED_DIR = Path("data/fused")
-FIG_DIR = Path("analysis/figures/random_forest_fused")
+BASE_DIR = Path("analysis/figures/random_forest_fused")
 
 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-FIG_DIR = FIG_DIR / timestamp
+RUN_DIR = BASE_DIR / timestamp
+
+FIG_DIR = RUN_DIR / "figures"
+METRICS_DIR = RUN_DIR / "metrics"
+MODEL_DIR = RUN_DIR / "model"
+
 FIG_DIR.mkdir(parents=True, exist_ok=True)
+METRICS_DIR.mkdir(parents=True, exist_ok=True)
+MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _load_fused_csv(csv_path: Path) -> pd.DataFrame:
@@ -122,15 +129,52 @@ def train_fused_random_forest(random_state: int = 42):
     y_pred = model.predict(X_test)
     predict_time = time.perf_counter() - start_pred
 
+    # --------------------------------------------------
+    # Análise de erros (Falsos Negativos)
+    # --------------------------------------------------
+    results_df = X_test.copy()
+    results_df["y_true"] = y_test.values
+    results_df["y_pred"] = y_pred
+
+    false_negatives = results_df[
+        (results_df["y_true"] == 1) &
+        (results_df["y_pred"] == 0)
+    ]
+
+    true_positives = results_df[
+        (results_df["y_true"] == 1) &
+        (results_df["y_pred"] == 1)
+    ]
+
+    if len(false_negatives) > 0 and len(true_positives) > 0:
+        comparison = pd.DataFrame({
+            "FN_mean": false_negatives.mean(numeric_only=True),
+            "TP_mean": true_positives.mean(numeric_only=True),
+        })
+
+    comparison["difference"] = (
+        comparison["FN_mean"] - comparison["TP_mean"]
+    )
+
+    comparison.sort_values(
+        "difference",
+        key=lambda x: np.abs(x),
+        ascending=False
+    ).to_csv(
+        METRICS_DIR / "false_negative_analysis.csv"
+    )
+
+    print("[OK] Análise de Falsos Negativos salva.")
+
     # =========================
     # TAMANHO DO MODELO
     # =========================
-    tmp_model = "rf_temp.pkl"
-    with open(tmp_model, "wb") as f:
+    model_path = MODEL_DIR / "random_forest_model.pkl"
+
+    with open(model_path, "wb") as f:
         pickle.dump(model, f)
 
-    model_size_mb = os.path.getsize(tmp_model) / (1024 * 1024)
-    os.remove(tmp_model)
+    model_size_mb = os.path.getsize(model_path) / (1024 * 1024)
 
     print(
         f"[PERFORMANCE] "
@@ -193,10 +237,10 @@ def train_fused_random_forest(random_state: int = 42):
 
     # ✅ CSV apenas com números (sem “◯”)
     pd.DataFrame([metrics_raw]).to_csv(
-        FIG_DIR / "fused_random_forest_metrics.csv",
+        METRICS_DIR / "fused_random_forest_metrics.csv",
         index=False,
     )
-    print("[OK] Métricas salvas em", FIG_DIR)
+    print("[OK] Métricas salvas em", METRICS_DIR)
 
     # =========================
     # GRÁFICO DE MÉTRICAS (com “círculo oco” quando 0/NaN)
@@ -244,6 +288,7 @@ def train_fused_random_forest(random_state: int = 42):
     disp = ConfusionMatrixDisplay.from_predictions(
         y_test,
         y_pred,
+        labels=[0,1],
         display_labels=["Absence(0)", "Occupied(1)"],
         cmap="Blues",
         normalize=None,
