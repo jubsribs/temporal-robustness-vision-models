@@ -8,6 +8,7 @@ import os
 
 from pathlib import Path
 from datetime import datetime
+from sklearn.pipeline import Pipeline
 from sklearn.linear_model import SGDClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import (
@@ -35,6 +36,10 @@ FIG_DIR.mkdir(parents=True, exist_ok=True)
 METRICS_DIR.mkdir(parents=True, exist_ok=True)
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
+sgd_model = Pipeline([
+    ("scaler", StandardScaler()),
+    ("clf", SGDClassifier(loss="log_loss", class_weight="balanced"))
+])
 
 def _load_fused_csv(csv_path: Path) -> pd.DataFrame:
     df = pd.read_csv(csv_path, parse_dates=["timestamp"], low_memory=False)
@@ -104,7 +109,10 @@ def train_fused_sgd(random_state: int = 42):
         stratify=strat,
     )
 
-    model = SGDClassifier( loss="log_loss", random_state=42)
+    model = SGDClassifier( loss="log_loss",
+            max_iter=5000,
+            class_weight="balanced",
+            random_state=random_state,)
 
     # =========================
     # TEMPO + MEMÓRIA TREINO
@@ -125,15 +133,59 @@ def train_fused_sgd(random_state: int = 42):
     y_pred = model.predict(X_test)
     predict_time = time.perf_counter() - start_pred
 
+    # ======================================================
+    # ANÁLISE FALSOS NEGATIVOS
+    # ======================================================
+
+    results_df = X_test.copy()
+    results_df["y_true"] = y_test.values
+    results_df["y_pred"] = y_pred
+
+    false_negatives = results_df[
+        (results_df["y_true"] == 1) &
+        (results_df["y_pred"] == 0)
+    ]
+
+    true_positives = results_df[
+        (results_df["y_true"] == 1) &
+        (results_df["y_pred"] == 1)
+    ]
+
+    if len(false_negatives) > 0 and len(true_positives) > 0:
+        comparison = pd.DataFrame({
+            "FN_mean": false_negatives.mean(numeric_only=True),
+            "TP_mean": true_positives.mean(numeric_only=True),
+        })
+
+        comparison["difference"] = (
+            comparison["FN_mean"] - comparison["TP_mean"]
+        )
+
+        comparison.sort_values(
+            "difference",
+            key=lambda x: np.abs(x),
+            ascending=False
+        ).to_csv(
+            METRICS_DIR / "false_negative_analysis.csv"
+        )
+
+        plt.figure(figsize=(6,4))
+        plt.hist(true_positives["average_light"], bins=30, alpha=0.5, label="TP")
+        plt.hist(false_negatives["average_light"], bins=30, alpha=0.5, label="FN")
+        plt.legend()
+        plt.title("light em FN vs light em TP")
+        plt.show()
+        plt.savefig(METRICS_DIR / "fused_metrics_sgd.png")
+        plt.close()
+
     # =========================
     # TAMANHO DO MODELO
     # =========================
-    tmp_model = "rf_temp.pkl"
+    model_path = MODEL_DIR / "sgd_model.pkl"
     with open(tmp_model, "wb") as f:
         pickle.dump(model, f)
 
-    model_size_mb = os.path.getsize(tmp_model) / (1024 * 1024)
-    os.remove(tmp_model)
+    model_size_mb = os.path.getsize(model_path) / (1024 * 1024)
 
     print(
         f"[PERFORMANCE] "
@@ -199,42 +251,6 @@ def train_fused_sgd(random_state: int = 42):
         index=False,
     )
     print("[OK] Métricas salvas em", METRICS_DIR)
-
-    # ======================================================
-    # ANÁLISE FALSOS NEGATIVOS
-    # ======================================================
-
-    results_df = X_test.copy()
-    results_df["y_true"] = y_test.values
-    results_df["y_pred"] = y_pred
-
-    false_negatives = results_df[
-        (results_df["y_true"] == 1) &
-        (results_df["y_pred"] == 0)
-    ]
-
-    true_positives = results_df[
-        (results_df["y_true"] == 1) &
-        (results_df["y_pred"] == 1)
-    ]
-
-    if len(false_negatives) > 0 and len(true_positives) > 0:
-        comparison = pd.DataFrame({
-            "FN_mean": false_negatives.mean(numeric_only=True),
-            "TP_mean": true_positives.mean(numeric_only=True),
-        })
-
-        comparison["difference"] = (
-            comparison["FN_mean"] - comparison["TP_mean"]
-        )
-
-        comparison.sort_values(
-            "difference",
-            key=lambda x: np.abs(x),
-            ascending=False
-        ).to_csv(
-            METRICS_DIR / "false_negative_analysis.csv"
-        )
 
     # =========================
     # GRÁFICO DE MÉTRICAS (com “círculo oco” quando 0/NaN)
