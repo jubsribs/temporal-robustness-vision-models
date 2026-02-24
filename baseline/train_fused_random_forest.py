@@ -88,7 +88,7 @@ def train_fused_random_forest(random_state: int = 42):
         .fillna(0)
     )
     print(f"[INFO] Features usadas: {list(X.columns)}")
-    
+
     y = df["ocupada"]
 
     if X.empty or y.empty:
@@ -166,16 +166,16 @@ def train_fused_random_forest(random_state: int = 42):
         METRICS_DIR / "false_negative_analysis.csv"
     )
 
-    plt.figure(figsize=(6,4))
-    plt.hist(true_positives["average_light"], bins=30, alpha=0.5, label="TP")
-    plt.hist(false_negatives["average_light"], bins=30, alpha=0.5, label="FN")
-    plt.legend()
-    plt.title("light em FN vs light em TP")
-    plt.show()
-    plt.savefig(METRICS_DIR / "fused_metrics_random_forest.png")
-    plt.close()
+    #plt.figure(figsize=(6,4))
+    #plt.hist(true_positives["average_light"], bins=30, alpha=0.5, label="TP")
+    #plt.hist(false_negatives["average_light"], bins=30, alpha=0.5, label="FN")
+    #plt.legend()
+    #plt.title("light em FN vs light em TP")
+    #plt.show()
+    #plt.savefig(METRICS_DIR / "fused_metrics_random_forest.png")
+    #plt.close()
 
-    print("[OK] Análise de Falsos Negativos salva.")
+    #print("[OK] Análise de Falsos Negativos salva.")
 
     # =========================
     # TAMANHO DO MODELO
