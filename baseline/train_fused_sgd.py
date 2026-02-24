@@ -282,7 +282,7 @@ def train_fused_sgd(random_state: int = 42):
     disp = ConfusionMatrixDisplay.from_predictions(
         y_test,
         y_pred,
-        LABELS=[0,1],
+        labels=[0,1],
         display_labels=["Absence(0)", "Occupied(1)"],
         cmap="Blues",
         normalize=None,
