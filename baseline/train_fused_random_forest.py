@@ -83,10 +83,12 @@ def train_fused_random_forest(random_state: int = 42):
 
     # Features (numéricas) + target
     X = (
-        df.drop(columns=["timestamp", "ocupada"], errors="ignore")
+        df.drop(columns=["timestamp", "ocupada","average_light"], errors="ignore")
         .select_dtypes(include=["number"])
         .fillna(0)
     )
+    print(f"[INFO] Features usadas: {list(X.columns)}")
+    
     y = df["ocupada"]
 
     if X.empty or y.empty:
