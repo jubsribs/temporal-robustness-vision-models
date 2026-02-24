@@ -177,7 +177,7 @@ def train_fused_sgd(random_state: int = 42):
     # TAMANHO DO MODELO
     # =========================
     model_path = MODEL_DIR / "sgd_model.pkl"
-    with open(tmp_model, "wb") as f:
+    with open(model_path, "wb") as f:
         pickle.dump(model, f)
 
     model_size_mb = os.path.getsize(model_path) / (1024 * 1024)
