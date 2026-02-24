@@ -1,0 +1,2 @@
+camera,week,train_samples,test_samples,accuracy,f1
+webcam_usb,week_2026_09,103,26,1.0,0.0
