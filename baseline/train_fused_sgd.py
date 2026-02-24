@@ -8,7 +8,6 @@ import os
 
 from pathlib import Path
 from datetime import datetime
-from sklearn.pipeline import Pipeline
 from sklearn.linear_model import SGDClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import (
@@ -36,10 +35,6 @@ FIG_DIR.mkdir(parents=True, exist_ok=True)
 METRICS_DIR.mkdir(parents=True, exist_ok=True)
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
-sgd_model = Pipeline([
-    ("scaler", StandardScaler()),
-    ("clf", SGDClassifier(loss="log_loss", class_weight="balanced"))
-])
 
 def _load_fused_csv(csv_path: Path) -> pd.DataFrame:
     df = pd.read_csv(csv_path, parse_dates=["timestamp"], low_memory=False)
