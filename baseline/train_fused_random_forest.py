@@ -18,6 +18,7 @@ from sklearn.metrics import (
     ConfusionMatrixDisplay,
     classification_report,
 )
+from scipy.stats import ttest_ind
 
 # Diretórios
 FUSED_DIR = Path("data/fused")
@@ -140,7 +141,7 @@ def analyze_occupancy_episodes(y_true, y_pred):
 
     return df_results
 
-def train_fused_random_forest(random_state: int = 42):
+def train_fused_random_forest(random_state: int = 42, threshold: float = 0.35):
     csvs = sorted(FUSED_DIR.glob("week_*.csv"))
     if not csvs:
         print("[WARN] Nenhum CSV found em data/fused")
@@ -187,6 +188,8 @@ def train_fused_random_forest(random_state: int = 42):
         n_estimators=300,
         random_state=random_state,
         class_weight="balanced",
+        max_depth=None,
+        min_samples_leaf=2,
         n_jobs=-1,
     )
 
@@ -207,17 +210,81 @@ def train_fused_random_forest(random_state: int = 42):
     # =========================
     start_pred = time.perf_counter()
     y_prob = model.predict_proba(X_test)[:,1]
-    y_pred = (y_prob >0.35).astype(int)
+    y_pred = (y_prob > threshold).astype(int)
     predict_time = time.perf_counter() - start_pred
 
-    episode_df = analyze_occupancy_episodes(y_test, y_pred)
-    episode_df.to_csv(FIG_DIR / "episode_analysis.csv", index=False)
+    test_df = X_test.copy()
+    test_df["y_true"] = y_test.values
+    test_df["y_pred"] = y_pred
+    test_df["timestamp"] = df.loc[X_test.index, "timestamp"]
+
+    test_df = test_df.sort_values("timestamp").reset_index(drop=True)
+
+    test_df["episode_status"] = "none"
+
+    episode_df = analyze_occupancy_episodes(
+        test_df["y_true"].values,
+        test_df["y_pred"].values
+    )
+
+    for _, row in episode_df.iterrows():
+        start = int(row["start_index"])
+        end = int(row["end_index"])
+        status = row["status"]
+
+        test_df.loc[start:end, "episode_status"] = status
+
+    missed_df = df_test[df_test["episode_status"] == "missed"]
+    detected_df = df_test[df_test["episode_status"] == "fully_detected"]
+
+    print("Missed samples:", len(missed_df))
+    print("Detected samples:", len(detected_df))
+
+    episode_df.to_csv(METRICS_DIR / "episode_analysis.csv", index=False)
+    #---------------------------------------
+    # Teste de Welch
+    # -----------------------------------------
+
+    results = []
+
+    feature_cols = X_test.columns
+
+    for col in feature_cols:
+        missed_vals = missed_df[col].dropna()
+        detected_vals = detected_df[col].dropna()
+
+    if len(missed_vals) > 1 and len(detected_vals) > 1:
+        stat, pval = ttest_ind(missed_vals, detected_vals, equal_var=False)
+        
+        results.append({
+            "feature": col,
+            "missed_mean": missed_vals.mean(),
+            "detected_mean": detected_vals.mean(),
+            "difference": missed_vals.mean() - detected_vals.mean(),
+            "p_value": pval
+        })
+
+    stats_df = pd.DataFrame(results).sort_values("p_value")
+
+    print(stats_df.head(10))
+
+    top_features = stats_df.head(5)["feature"]
+
+    for col in top_features:
+        plt.figure()
+        plt.hist(missed_df[col], alpha=0.5, label="Missed")
+        plt.hist(detected_df[col], alpha=0.5, label="Detected")
+        plt.legend()
+        plt.title(col)
+        plt.show()
+
     # --------------------------------------------------
     # Análise de erros (Falsos Negativos)
     # --------------------------------------------------
     results_df = X_test.copy()
     results_df["y_true"] = y_test.values
     results_df["y_pred"] = y_pred
+    results_df["y_prob"] = y_prob
 
     false_negatives = results_df[
         (results_df["y_true"] == 1) &
@@ -229,16 +296,52 @@ def train_fused_random_forest(random_state: int = 42):
         (results_df["y_pred"] == 1)
     ]
 
-    if len(false_negatives) > 0 and len(true_positives) > 0:
+    if len(false_negatives) > 1 and len(true_positives) > 1:
+
         comparison = pd.DataFrame({
             "FN_mean": false_negatives.mean(numeric_only=True),
             "TP_mean": true_positives.mean(numeric_only=True),
         })
 
-    comparison["difference"] = (
-        comparison["FN_mean"] - comparison["TP_mean"]
-    )
+        comparison["difference"] = (
+            comparison["FN_mean"] - comparison["TP_mean"]
+        )
 
+        comparison = comparison.sort_values(
+            "difference",
+            key=lambda x: np.abs(x),
+            ascending=False
+        )
+
+        comparison.to_csv(
+            METRICS_DIR / "false_negative_analysis.csv"
+        )
+
+        print(f"[INFO] FN analysis saved ({len(false_negatives)} FN samples)")
+    else:
+        print("[INFO] Not enough FN/TP samples for statistical comparison")
+    
+    false_negatives = results_df[
+        (results_df["y_true"] == 1) &
+        (results_df["y_pred"] == 0)
+    ]
+
+    true_positives = results_df[
+        (results_df["y_true"] == 1) &
+        (results_df["y_pred"] == 1)
+    ]
+
+    if len(false_negatives) > 0:
+        print(
+            "[INFO] Mean probability (FN):",
+            false_negatives["y_prob"].mean()
+        )
+
+    if len(true_positives) > 0:
+        print(
+            "[INFO] Mean probability (TP):",
+            true_positives["y_prob"].mean()
+    )
     comparison.sort_values(
         "difference",
         key=lambda x: np.abs(x),
@@ -311,6 +414,7 @@ def train_fused_random_forest(random_state: int = 42):
         "precision_absence": prec_abs,
         "recall_absence": rec_abs,
         "f1_absence": f1_abs,
+        "threshold": threshold,
         "support_absence": int(report["Absence(0)"]["support"]) if "Absence(0)" in report else None,
         "support_occupied": int(report["Occupied(1)"]["support"]) if "Occupied(1)" in report else None,
     }
