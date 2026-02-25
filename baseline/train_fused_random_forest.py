@@ -277,6 +277,7 @@ def train_fused_random_forest(random_state: int = 42, threshold: float = 0.35):
         plt.legend()
         plt.title(col)
         plt.show()
+        plt.savefig(FIG_DIR / "fused_welch_random_forest.png")
 
     # --------------------------------------------------
     # Análise de erros (Falsos Negativos)
