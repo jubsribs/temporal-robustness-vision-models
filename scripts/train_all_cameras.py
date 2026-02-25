@@ -40,6 +40,39 @@ def align_features_to_model(X: pd.DataFrame, model) -> pd.DataFrame:
     X_aligned = X.reindex(columns=expected, fill_value=0)
     return X_aligned
 
+def safe_train_test_split(X, y, test_size=0.2, random_state=42):
+    """
+    Faz split estratificado apenas se for estatisticamente possível.
+    Caso contrário, faz split simples.
+    """
+    class_counts = y.value_counts()
+
+    # precisa pelo menos 2 amostras por classe
+    if y.nunique() < 2 or class_counts.min() < 2:
+        return train_test_split(
+            X, y,
+            test_size=test_size,
+            random_state=random_state,
+            stratify=None
+        )
+
+    # verifica se o split 80/20 mantém pelo menos 1 amostra por classe no teste
+    min_test_samples = int(class_counts.min() * test_size)
+
+    if min_test_samples < 1:
+        return train_test_split(
+            X, y,
+            test_size=test_size,
+            random_state=random_state,
+            stratify=None
+        )
+
+    return train_test_split(
+        X, y,
+        test_size=test_size,
+        random_state=random_state,
+        stratify=y
+    )
 
 def train_all():
     week_id = current_week_id()
@@ -73,6 +106,10 @@ def train_all():
         # Carrega modelo anterior
         model = load_latest_model(model_dir)
 
+        if y.value_counts().min() < 2:
+            print("Semana ignorada: classe minoritária insuficiente")
+            continue
+
         if model is None:
             print("  → Criando modelo incremental inicial")
             model = SGDClassifier(loss="log_loss", random_state=42)
@@ -90,9 +127,7 @@ def train_all():
             # Alinha X às features do modelo ANTES do split, para consistência total
             X = align_features_to_model(X, model)
 
-            X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=0.2, random_state=42, stratify=y
-            )
+            X_train, X_test, y_train, y_test = safe_train_test_split(X, y)
 
             model.partial_fit(X_train, y_train)
 
