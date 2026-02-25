@@ -234,8 +234,8 @@ def train_fused_random_forest(random_state: int = 42, threshold: float = 0.35):
 
         test_df.loc[start:end, "episode_status"] = status
 
-    missed_df = df_test[df_test["episode_status"] == "missed"]
-    detected_df = df_test[df_test["episode_status"] == "fully_detected"]
+    missed_df = test_df[test_df["episode_status"] == "missed"]
+    detected_df = test_df[test_df["episode_status"] == "fully_detected"]
 
     print("Missed samples:", len(missed_df))
     print("Detected samples:", len(detected_df))
