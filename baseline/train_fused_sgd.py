@@ -142,7 +142,7 @@ def analyze_occupancy_episodes(y_true, y_pred):
     return df_results
 
 
-def train_fused_sgd(random_state: int = 42):
+def train_fused_sgd(random_state: int = 42, threshold: float = 0.35):
     csvs = sorted(FUSED_DIR.glob("week_*.csv"))
     if not csvs:
         print("[WARN] Nenhum CSV found em data/fused")
