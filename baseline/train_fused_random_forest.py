@@ -46,7 +46,7 @@ def _load_fused_csv(csv_path: Path) -> pd.DataFrame:
 
 
 def _is_bad_metric(x: float) -> bool:
-    # “mau” = 0 (numerador zero) OU NaN (indefinição/denominador zero)
+    #  NaN (indefinição/denominador zero)
     if x is None:
         return True
     try:
@@ -80,32 +80,6 @@ def train_fused_random_forest(random_state: int = 42):
         return
 
     df = pd.concat(dfs, ignore_index=True)
-
-    # ======================================================
-    # FEATURE ENGINEERING — VARIAÇÕES RELATIVAS
-    # ======================================================
-
-    relative_cols = [
-        "average_temperature",
-        "average_ambient",
-        "average_object",
-        "average_humidity",
-        "average_gas",
-    ]
-
-    for col in relative_cols:
-        if col in df.columns:
-            mean_val = df[col].mean()
-            if mean_val != 0:
-                df[f"{col}_delta_pct"] = (df[col] - mean_val) / mean_val
-            else:
-                df[f"{col}_delta_pct"] = 0
-
-    # Contraste térmico (importante para ocupação humana)
-    if "average_object" in df.columns and "average_ambient" in df.columns:
-        df["thermal_contrast"] = df["average_object"] - df["average_ambient"]
-
-    print("[INFO] Features relativas criadas.")
 
     # Features (numéricas) + target
     X = (
@@ -154,7 +128,8 @@ def train_fused_random_forest(random_state: int = 42):
     # TEMPO PREDIÇÃO
     # =========================
     start_pred = time.perf_counter()
-    y_pred = model.predict(X_test)
+    y_prob = model.predict_proba(X_test)[:,1]
+    y_pred = (y_prob >0.35).astype(int)
     predict_time = time.perf_counter() - start_pred
 
     # --------------------------------------------------
@@ -191,18 +166,6 @@ def train_fused_random_forest(random_state: int = 42):
     ).to_csv(
         METRICS_DIR / "false_negative_analysis.csv"
     )
-
-    #plt.figure(figsize=(6,4))
-    #plt.hist(true_positives["average_light"], bins=30, alpha=0.5, label="TP")
-    #plt.hist(false_negatives["average_light"], bins=30, alpha=0.5, label="FN")
-    #plt.legend()
-    #plt.title("light em FN vs light em TP")
-    #plt.show()
-    #plt.savefig(METRICS_DIR / "fused_metrics_random_forest.png")
-    #plt.close()
-
-    #print("[OK] Análise de Falsos Negativos salva.")
-
     # =========================
     # TAMANHO DO MODELO
     # =========================
