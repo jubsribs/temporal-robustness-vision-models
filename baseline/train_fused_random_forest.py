@@ -58,9 +58,87 @@ def _is_bad_metric(x: float) -> bool:
 
 
 def _value_or_nan(x: float) -> float:
-    # Para barras: se for mau, mete NaN para a barra não aparecer
+    # Para barras:  mete NaN para a barra não aparecer
     return np.nan if _is_bad_metric(x) else float(x)
 
+def analyze_occupancy_episodes(y_true, y_pred):
+    y_true = np.array(y_true)
+    y_pred = np.array(y_pred)
+
+    episodes = []
+    in_episode = False
+    start_idx = None
+
+    # -----------------------------
+    # 1. Detectar blocos contínuos
+    # -----------------------------
+    for i in range(len(y_true)):
+        if y_true[i] == 1 and not in_episode:
+            in_episode = True
+            start_idx = i
+
+        elif y_true[i] == 0 and in_episode:
+            end_idx = i - 1
+            episodes.append((start_idx, end_idx))
+            in_episode = False
+
+    # Caso termine em episódio
+    if in_episode:
+        episodes.append((start_idx, len(y_true) - 1))
+
+    # -----------------------------
+    # 2. Analisar cada episódio
+    # -----------------------------
+    results = []
+
+    for (start, end) in episodes:
+        true_segment = y_true[start:end+1]
+        pred_segment = y_pred[start:end+1]
+
+        duration = end - start + 1
+        detected_positions = np.where(pred_segment == 1)[0]
+
+        if len(detected_positions) == 0:
+            status = "missed"
+            delay = None
+            coverage = 0.0
+
+        else:
+            first_detection = detected_positions[0]
+            delay = first_detection  # slots após início real
+            coverage = len(detected_positions) / duration
+
+            if delay == 0 and coverage == 1.0:
+                status = "fully_detected"
+            elif delay > 0:
+                status = "delayed"
+            else:
+                status = "partial"
+
+        results.append({
+            "start_index": start,
+            "end_index": end,
+            "duration_slots": duration,
+            "detected": len(detected_positions) > 0,
+            "delay_slots": delay,
+            "coverage_ratio": coverage,
+            "status": status
+        })
+
+    df_results = pd.DataFrame(results)
+
+    # -----------------------------
+    # 3. Métrica global episódio
+    # -----------------------------
+    if len(df_results) > 0:
+        episode_detection_rate = df_results["detected"].mean()
+    else:
+        episode_detection_rate = np.nan
+
+    print(f"\nTotal episódios reais: {len(df_results)}")
+    print(f"OEDR (episode detection rate): {episode_detection_rate:.3f}")
+
+    return df_results
 
 def train_fused_random_forest(random_state: int = 42):
     csvs = sorted(FUSED_DIR.glob("week_*.csv"))
@@ -132,6 +210,8 @@ def train_fused_random_forest(random_state: int = 42):
     y_pred = (y_prob >0.35).astype(int)
     predict_time = time.perf_counter() - start_pred
 
+    episode_df = analyze_occupancy_episodes(y_test, y_pred)
+    episode_df.to_csv(FIG_DIR / "episode_analysis.csv", index=False)
     # --------------------------------------------------
     # Análise de erros (Falsos Negativos)
     # --------------------------------------------------
