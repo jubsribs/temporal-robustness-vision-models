@@ -125,7 +125,8 @@ def train_fused_sgd(random_state: int = 42):
     # TEMPO PREDIÇÃO
     # =========================
     start_pred = time.perf_counter()
-    y_pred = model.predict(X_test)
+    y_prob = model.predict_proba(X_test)[:,1]
+    y_pred = (y_prob >0.35).astype(int)
     predict_time = time.perf_counter() - start_pred
 
     # ======================================================
@@ -163,15 +164,6 @@ def train_fused_sgd(random_state: int = 42):
         ).to_csv(
             METRICS_DIR / "false_negative_analysis.csv"
         )
-
-        plt.figure(figsize=(6,4))
-        plt.hist(true_positives["average_light"], bins=30, alpha=0.5, label="TP")
-        plt.hist(false_negatives["average_light"], bins=30, alpha=0.5, label="FN")
-        plt.legend()
-        plt.title("light em FN vs light em TP")
-        plt.show()
-        plt.savefig(METRICS_DIR / "fused_metrics_sgd.png")
-        plt.close()
 
     # =========================
     # TAMANHO DO MODELO
