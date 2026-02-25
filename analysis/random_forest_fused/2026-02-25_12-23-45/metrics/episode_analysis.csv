@@ -1,0 +1,15 @@
+start_index,end_index,duration_slots,detected,delay_slots,coverage_ratio,status
+0,1,2,True,0.0,1.0,fully_detected
+3,4,2,True,0.0,1.0,fully_detected
+10,10,1,True,0.0,1.0,fully_detected
+15,16,2,True,0.0,1.0,fully_detected
+19,23,5,True,0.0,1.0,fully_detected
+30,30,1,True,0.0,1.0,fully_detected
+32,34,3,True,0.0,1.0,fully_detected
+39,41,3,True,1.0,0.6666666666666666,delayed
+51,51,1,True,0.0,1.0,fully_detected
+62,67,6,True,1.0,0.5,delayed
+77,79,3,False,,0.0,missed
+81,82,2,True,0.0,0.5,partial
+214,215,2,True,0.0,1.0,fully_detected
+515,515,1,True,0.0,1.0,fully_detected
