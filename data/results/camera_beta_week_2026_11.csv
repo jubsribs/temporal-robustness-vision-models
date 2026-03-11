@@ -1,0 +1,2 @@
+camera,week,train_samples,test_samples,accuracy,f1
+camera_beta,week_2026_11,95,24,0.9166666666666666,0.8888888888888888
