@@ -166,7 +166,6 @@ def train_fused_random_forest(random_state: int = 42, threshold: float = 0.35):
         .select_dtypes(include=["number"])
         .fillna(0)
     )
-    print(f"[INFO] Features usadas: {list(X.columns)}")
 
     y = df["ocupada"]
 
@@ -278,6 +277,7 @@ def train_fused_random_forest(random_state: int = 42, threshold: float = 0.35):
         plt.title(col)
         plt.show()
         plt.savefig(FIG_DIR / "fused_welch_random_forest.png")
+        plt.close()
 
     # --------------------------------------------------
     # Análise de erros (Falsos Negativos)
