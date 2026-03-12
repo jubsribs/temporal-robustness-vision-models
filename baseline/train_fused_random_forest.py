@@ -19,6 +19,8 @@ from sklearn.metrics import (
     classification_report,
 )
 from scipy.stats import ttest_ind
+from scipy.stats import ttest_1samp
+from sklearn.inspection import permutation_importance
 
 # Diretórios
 FUSED_DIR = Path("data/fused")
@@ -252,16 +254,16 @@ def train_fused_random_forest(random_state: int = 42, threshold: float = 0.35):
         missed_vals = missed_df[col].dropna()
         detected_vals = detected_df[col].dropna()
 
-    if len(missed_vals) > 1 and len(detected_vals) > 1:
-        stat, pval = ttest_ind(missed_vals, detected_vals, equal_var=False)
-        
-        results.append({
-            "feature": col,
-            "missed_mean": missed_vals.mean(),
-            "detected_mean": detected_vals.mean(),
-            "difference": missed_vals.mean() - detected_vals.mean(),
-            "p_value": pval
-        })
+        if len(missed_vals) > 1 and len(detected_vals) > 1:
+            stat, pval = ttest_ind(missed_vals, detected_vals, equal_var=False)
+            
+            results.append({
+                "feature": col,
+                "missed_mean": missed_vals.mean(),
+                "detected_mean": detected_vals.mean(),
+                "difference": missed_vals.mean() - detected_vals.mean(),
+                "p_value": pval
+            })
 
     stats_df = pd.DataFrame(results).sort_values("p_value")
 
@@ -276,8 +278,75 @@ def train_fused_random_forest(random_state: int = 42, threshold: float = 0.35):
         plt.legend()
         plt.title(col)
         plt.show()
-        plt.savefig(FIG_DIR / "fused_welch_random_forest.png")
+        plt.savefig(FIG_DIR / f"welch_{col}.png")
         plt.close()
+
+    #---------------------------------------
+    # Permutation Feature Importance
+    # -----------------------------------------
+     
+    result = permutation_importance(
+    model,
+    X_test,
+    y_test,
+    n_repeats=30,
+    random_state=42,
+    scoring="f1"
+    )
+
+    importance_df = pd.DataFrame({
+    "feature": X_test.columns,
+    "importance_mean": result.importances_mean,
+    "importance_std": result.importances_std
+    })
+
+    importance_df = importance_df.sort_values(
+        "importance_mean",
+        ascending=False
+    )
+
+    importance_df.to_csv(
+    METRICS_DIR / "permutation_feature_importance.csv",
+    index=False
+    )
+    
+    print(importance_df.head(10))
+
+    significance_results = []
+
+    for i, col in enumerate(X_test.columns):
+
+        scores = result.importances[i]
+
+        stat, pval = ttest_1samp(scores, 0)
+
+        significance_results.append({
+            "feature": col,
+            "importance_mean": scores.mean(),
+            "p_value": pval,
+            "significant": pval < 0.05
+        })
+
+    significance_df = pd.DataFrame(significance_results)
+    significance_df = significance_df.sort_values("importance_mean", ascending=False)
+    significance_df.to_csv(
+    METRICS_DIR / "permutation_feature_significance.csv",
+    index=False
+    )
+
+    print(significance_df)
+
+    plt.figure(figsize=(8,5))
+    plt.barh(
+        importance_df["feature"],
+        importance_df["importance_mean"]
+    )
+    plt.xlabel("Permutation Importance")
+    plt.title("Feature Importance (Random Forest)")
+    plt.gca().invert_yaxis()
+    plt.show()
+    plt.savefig(FIG_DIR / "permutation_feature_importance_random_forest.png")
+    plt.close()
 
     # --------------------------------------------------
     # Análise de erros (Falsos Negativos)
