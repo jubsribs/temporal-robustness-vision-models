@@ -265,21 +265,27 @@ def train_fused_random_forest(random_state: int = 42, threshold: float = 0.35):
                 "p_value": pval
             })
 
-    stats_df = pd.DataFrame(results).sort_values("p_value")
+    stats_df = pd.DataFrame(results)
 
-    print(stats_df.head(10))
+    if stats_df.empty:
+        print("[INFO] Not enough samples for Welch test (need ≥2 per group)")
+    else:
+        stats_df = stats_df.sort_values("p_value")
+        print(stats_df.head(10))
 
-    top_features = stats_df.head(5)["feature"]
 
-    for col in top_features:
-        plt.figure()
-        plt.hist(missed_df[col], alpha=0.5, label="Missed")
-        plt.hist(detected_df[col], alpha=0.5, label="Detected")
-        plt.legend()
-        plt.title(col)
-        plt.show()
-        plt.savefig(FIG_DIR / f"welch_{col}.png")
-        plt.close()
+    if not stats_df.empty:
+        top_features = stats_df.head(5)["feature"]
+
+        for col in top_features:
+            plt.figure()
+            plt.hist(missed_df[col], alpha=0.5, label="Missed")
+            plt.hist(detected_df[col], alpha=0.5, label="Detected")
+            plt.legend()
+            plt.title(col)
+
+            plt.savefig(FIG_DIR / f"welch_{col}.png")
+            plt.close()
 
     #---------------------------------------
     # Permutation Feature Importance
@@ -309,7 +315,7 @@ def train_fused_random_forest(random_state: int = 42, threshold: float = 0.35):
     METRICS_DIR / "permutation_feature_importance.csv",
     index=False
     )
-    
+
     print(importance_df.head(10))
 
     significance_results = []
