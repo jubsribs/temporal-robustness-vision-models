@@ -1,0 +1,2 @@
+split,random_state,samples_total,train_samples,test_samples,n_features,train_time_sec,predict_time_sec,peak_memory_MB,model_size_MB,accuracy,precision_occupied,recall_occupied,f1_occupied,precision_absence,recall_absence,f1_absence,threshold,support_absence,support_occupied
+80/20,42,4883,3906,977,8,9.196506709999994,0.16513838500031852,1.8038873672485352,4.332950592041016,0.9764585465711362,0.8571428571428571,0.8863636363636364,0.8715083798882681,0.9887133182844243,0.9853768278965129,0.9870422535211267,0.35,889,88
