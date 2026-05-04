@@ -287,16 +287,15 @@ def train_fused_sgd(random_state: int = 42, threshold: float = 0.35):
         (results_df["y_pred"] == 1)
     ]
 
-    if len(false_negatives) > 1 and len(true_positives) > 1:
+    comparison = None
 
+    if len(false_negatives) > 1 and len(true_positives) > 1:
         comparison = pd.DataFrame({
             "FN_mean": false_negatives.mean(numeric_only=True),
             "TP_mean": true_positives.mean(numeric_only=True),
         })
 
-        comparison["difference"] = (
-            comparison["FN_mean"] - comparison["TP_mean"]
-        )
+        comparison["difference"] = comparison["FN_mean"] - comparison["TP_mean"]
 
         comparison = comparison.sort_values(
             "difference",
@@ -304,23 +303,11 @@ def train_fused_sgd(random_state: int = 42, threshold: float = 0.35):
             ascending=False
         )
 
-        comparison.to_csv(
-            METRICS_DIR / "false_negative_analysis.csv"
-        )
-
+        comparison.to_csv(METRICS_DIR / "false_negative_analysis.csv")
         print(f"[INFO] FN analysis saved ({len(false_negatives)} FN samples)")
     else:
         print("[INFO] Not enough FN/TP samples")
-
-    # só usar se existir
-    if 'comparison' in locals():
-        comparison.sort_values(
-            "difference",
-            key=lambda x: np.abs(x),
-            ascending=False
-        ).to_csv(METRICS_DIR / "false_negative_analysis.csv")
         
-
     false_negatives = results_df[
         (results_df["y_true"] == 1) &
         (results_df["y_pred"] == 0)
