@@ -249,31 +249,24 @@ def train_fused_sgd(random_state: int = 42, threshold: float = 0.35):
         missed_vals = missed_df[col].dropna()
         detected_vals = detected_df[col].dropna()
 
-    if len(missed_vals) > 1 and len(detected_vals) > 1:
-        stat, pval = ttest_ind(missed_vals, detected_vals, equal_var=False)
-        
-        results.append({
-            "feature": col,
-            "missed_mean": missed_vals.mean(),
-            "detected_mean": detected_vals.mean(),
-            "difference": missed_vals.mean() - detected_vals.mean(),
-            "p_value": pval
-        })
+        if len(missed_vals) > 1 and len(detected_vals) > 1:
+            stat, pval = ttest_ind(missed_vals, detected_vals, equal_var=False)
+            
+            results.append({
+                "feature": col,
+                "missed_mean": missed_vals.mean(),
+                "detected_mean": detected_vals.mean(),
+                "difference": missed_vals.mean() - detected_vals.mean(),
+                "p_value": pval
+            })
 
-    stats_df = pd.DataFrame(results).sort_values("p_value")
+    stats_df = pd.DataFrame(results)
 
-    print(stats_df.head(10))
-
-    top_features = stats_df.head(5)["feature"]
-
-    for col in top_features:
-        plt.figure()
-        plt.hist(missed_df[col], alpha=0.5, label="Missed")
-        plt.hist(detected_df[col], alpha=0.5, label="Detected")
-        plt.legend()
-        plt.title(col)
-        plt.show()
-        plt.savefig(FIG_DIR / "fused_welch_random_forest.png")
+    if stats_df.empty:
+        print("[INFO] Not enough samples for Welch test")
+    else:
+        stats_df = stats_df.sort_values("p_value")
+        print(stats_df.head(10))
 
     # ======================================================
     # ANÁLISE FALSOS NEGATIVOS
@@ -317,8 +310,17 @@ def train_fused_sgd(random_state: int = 42, threshold: float = 0.35):
 
         print(f"[INFO] FN analysis saved ({len(false_negatives)} FN samples)")
     else:
-        print("[INFO] Not enough FN/TP samples for statistical comparison")
-    
+        print("[INFO] Not enough FN/TP samples")
+
+    # só usar se existir
+    if 'comparison' in locals():
+        comparison.sort_values(
+            "difference",
+            key=lambda x: np.abs(x),
+            ascending=False
+        ).to_csv(METRICS_DIR / "false_negative_analysis.csv")
+        
+
     false_negatives = results_df[
         (results_df["y_true"] == 1) &
         (results_df["y_pred"] == 0)
