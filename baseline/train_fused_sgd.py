@@ -307,7 +307,7 @@ def train_fused_sgd(random_state: int = 42, threshold: float = 0.35):
         print(f"[INFO] FN analysis saved ({len(false_negatives)} FN samples)")
     else:
         print("[INFO] Not enough FN/TP samples")
-        
+
     false_negatives = results_df[
         (results_df["y_true"] == 1) &
         (results_df["y_pred"] == 0)
@@ -329,13 +329,7 @@ def train_fused_sgd(random_state: int = 42, threshold: float = 0.35):
             "[INFO] Mean probability (TP):",
             true_positives["y_prob"].mean()
     )
-    comparison.sort_values(
-        "difference",
-        key=lambda x: np.abs(x),
-        ascending=False
-    ).to_csv(
-        METRICS_DIR / "false_negative_analysis.csv"
-    )
+
 
     # =========================
     # TAMANHO DO MODELO
