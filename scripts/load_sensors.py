@@ -17,45 +17,55 @@ def load_sensor(sensor, day_dir):
         return None
 
     try:
-        # Primeiro carrega o CSV sem converter a data.
-        # Assim, problemas estruturais ficam separados dos problemas de timestamp.
         df = pd.read_csv(path)
 
     except pd.errors.ParserError as error:
         print(f"\n[ERRO] CSV malformado: {path}")
         print(f"[ERRO] {error}")
         print(
-            "[ERRO] Verifique a linha indicada no erro. "
+            "[ERRO] Verifique a linha indicada. "
             "Ela possui uma quantidade inesperada de campos."
         )
         raise
 
-    if "timestamp" not in df.columns:
-        print(f"[DEBUG] Coluna 'timestamp' ausente em {path}")
+    required_columns = ["timestamp"] + features
+    missing_columns = [
+        column for column in required_columns
+        if column not in df.columns
+    ]
+
+    if missing_columns:
+        print(f"[DEBUG] Colunas ausentes em {path}: {missing_columns}")
         return None
 
-    # Converte o timestamp explicitamente.
-    df["timestamp"] = pd.to_datetime(
+    original_timestamp = df["timestamp"].copy()
+
+    numeric_timestamp = pd.to_numeric(
         df["timestamp"],
-        format="%Y-%m-%d %H:%M:%S",
         errors="coerce"
     )
 
-    invalid_timestamps = df["timestamp"].isna().sum()
+    df["timestamp"] = pd.to_datetime(
+        numeric_timestamp,
+        unit="s",
+        utc=True,
+        errors="coerce"
+    )
 
-    if invalid_timestamps > 0:
+    invalid_mask = df["timestamp"].isna()
+
+    if invalid_mask.any():
         print(
             f"[AVISO] {path} possui "
-            f"{invalid_timestamps} timestamp(s) inválido(s)"
+            f"{invalid_mask.sum()} timestamp(s) inválido(s)"
+        )
+        print("[DEBUG] Exemplos de valores inválidos:")
+        print(
+            original_timestamp.loc[invalid_mask]
+            .head(10)
+            .to_string(index=False)
         )
 
-        # Remove apenas registros sem timestamp válido.
-        df = df.dropna(subset=["timestamp"])
+        df = df.loc[~invalid_mask].copy()
 
-    missing = [column for column in features if column not in df.columns]
-
-    if missing:
-        print(f"[DEBUG] Colunas ausentes em {path}: {missing}")
-        return None
-
-    return df[["timestamp"] + features]
+    return df[required_columns]
