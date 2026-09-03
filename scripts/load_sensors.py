@@ -6,6 +6,11 @@ def load_sensor(sensor, day_dir):
     path = day_dir / f"{sensor}.csv"
 
     if not path.exists():
+        print(f"[DEBUG] Sensor CSV não encontrado: {path}")
+        return None
+
+    if path.stat().st_size == 0:
+        print(f"[AVISO] Sensor CSV vazio: {path}")
         return None
 
     print(f"Lendo arquivo: {path}", flush=True)
@@ -19,14 +24,18 @@ def load_sensor(sensor, day_dir):
     try:
         df = pd.read_csv(path)
 
+    except pd.errors.EmptyDataError:
+        print(f"[AVISO] Nenhum dado encontrado no CSV: {path}")
+        return None
+
     except pd.errors.ParserError as error:
         print(f"\n[ERRO] CSV malformado: {path}")
         print(f"[ERRO] {error}")
-        print(
-            "[ERRO] Verifique a linha indicada. "
-            "Ela possui uma quantidade inesperada de campos."
-        )
         raise
+
+    if df.empty:
+        print(f"[AVISO] CSV sem registros: {path}")
+        return None
 
     required_columns = ["timestamp"] + features
     missing_columns = [
@@ -59,7 +68,6 @@ def load_sensor(sensor, day_dir):
             f"[AVISO] {path} possui "
             f"{invalid_mask.sum()} timestamp(s) inválido(s)"
         )
-        print("[DEBUG] Exemplos de valores inválidos:")
         print(
             original_timestamp.loc[invalid_mask]
             .head(10)
@@ -67,5 +75,9 @@ def load_sensor(sensor, day_dir):
         )
 
         df = df.loc[~invalid_mask].copy()
+
+    if df.empty:
+        print(f"[AVISO] Nenhum registro válido restante em: {path}")
+        return None
 
     return df[required_columns]
