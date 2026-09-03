@@ -1,93 +1,163 @@
-from config import CAMERAS,PROCESSED_DIR,BASE_DIR
+from config import CAMERAS, PROCESSED_DIR, BASE_DIR
 from scripts.build_dataset import build_dataset
 from pathlib import Path
 import pandas as pd
 
-def floor_to_10min(df):
-    # 1. Validação básica
+
+def aggregate_time_blocks(df):
+    """
+    Garante uma única linha por bloco de 10 minutos.
+
+    - Sensores: média
+    - Ocupação: máximo
+    - Valores ausentes: permanecem como NaN
+    """
     if df is None or df.empty:
         return pd.DataFrame()
 
     if "timestamp" not in df.columns:
         raise ValueError("DataFrame sem coluna 'timestamp'")
 
-    # 2. Garantir datetime válido
     df = df.copy()
+
+    df["timestamp"] = pd.to_datetime(
+        df["timestamp"],
+        utc=True,
+        errors="coerce"
+    )
+
     df = df.dropna(subset=["timestamp"])
 
     if df.empty:
         return pd.DataFrame()
 
-    if not pd.api.types.is_datetime64_any_dtype(df["timestamp"]):
-        raise TypeError("Coluna 'timestamp' não é datetime")
+    df["timestamp"] = df["timestamp"].dt.floor("10min")
 
-    # 3. Criar bloco temporal
-    df["time_block"] = df["timestamp"].dt.floor("10min")
+    aggregate_functions = {}
 
-    # 4. Agregação segura
-    sensor_cols = [
-        c for c in df.columns
-        if c not in ["timestamp", "time_block", "ocupada"]
-    ]
+    for column in df.columns:
+        if column == "timestamp":
+            continue
 
-    agg = {c: "mean" for c in sensor_cols}
-    if "ocupada" in df.columns:
-        agg["ocupada"] = "max"
+        if column == "ocupada":
+            aggregate_functions[column] = "max"
+        elif pd.api.types.is_numeric_dtype(df[column]):
+            aggregate_functions[column] = "mean"
 
-    df = (
-        df
-        .groupby("time_block", as_index=False)
-        .agg(agg)
-        .rename(columns={"time_block": "timestamp"})
+    if not aggregate_functions:
+        return df[["timestamp"]].drop_duplicates()
+
+    return (
+        df.groupby("timestamp", as_index=False)
+        .agg(aggregate_functions)
+        .sort_values("timestamp")
+        .reset_index(drop=True)
     )
 
-    # 5. Preencher ausências
-    return df.fillna(0)
 
 def process_all():
+    base_dir = Path(BASE_DIR)
+    processed_dir = Path(PROCESSED_DIR)
 
-    # Lista todos os dias disponíveis
-    days = sorted([d for d in Path(BASE_DIR).iterdir() if d.is_dir()])
+    if not base_dir.exists():
+        raise FileNotFoundError(
+            f"Diretório de dados não encontrado: {base_dir}"
+        )
 
-    for cam in CAMERAS:
-        print(f"Processando {cam}...")
-        out_dir = Path(PROCESSED_DIR) / cam
+    days = sorted(
+        directory
+        for directory in base_dir.iterdir()
+        if directory.is_dir()
+    )
+
+    if not days:
+        print(f"[AVISO] Nenhum diretório diário encontrado em {base_dir}")
+        return
+
+    for camera in CAMERAS:
+        print(f"\nProcessando {camera}...")
+
+        out_dir = processed_dir / camera
         out_dir.mkdir(parents=True, exist_ok=True)
 
         weekly_data = {}
 
         for day_dir in days:
-            df = build_dataset(cam, [day_dir], None)
+            print(f"[INFO] Dia: {day_dir.name}")
 
-            if df is None or df.empty:
-                continue
-
-            if not pd.api.types.is_datetime64_any_dtype(df["timestamp"]):
-                df["timestamp"] = pd.to_datetime(df["timestamp"])
-
-            # Extrai semana ISO
-            iso = df["timestamp"].dt.isocalendar()
-            df["iso_year"] = iso.year
-            df["iso_week"] = iso.week
-
-            for (year, week), g in df.groupby(["iso_year", "iso_week"]):
-                key = f"week_{year}_{week:02d}"
-                weekly_data.setdefault(key, []).append(g)
-
-        # Salva semanas corretamente
-        for week_id, dfs in weekly_data.items():
-            week_df = pd.concat(dfs, ignore_index=True)
-             # REMOVE colunas auxiliares de tempo
-            week_df = week_df.drop(
-                columns=[c for c in ["iso_year", "iso_week"] if c in week_df.columns]
+            df = build_dataset(
+                camera,
+                [day_dir],
+                None
             )
 
-            week_df = floor_to_10min(week_df)
+            if df is None or df.empty:
+                print(
+                    f"[AVISO] Nenhum dado válido para "
+                    f"{camera} em {day_dir.name}"
+                )
+                continue
+
+            df = df.copy()
+
+            df["timestamp"] = pd.to_datetime(
+                df["timestamp"],
+                utc=True,
+                errors="coerce"
+            )
+
+            df = df.dropna(subset=["timestamp"])
+
+            if df.empty:
+                continue
+
+            iso_calendar = df["timestamp"].dt.isocalendar()
+
+            df["iso_year"] = iso_calendar["year"].astype(int)
+            df["iso_week"] = iso_calendar["week"].astype(int)
+
+            for (year, week), group in df.groupby(
+                ["iso_year", "iso_week"]
+            ):
+                week_id = f"week_{int(year)}_{int(week):02d}"
+
+                weekly_data.setdefault(
+                    week_id,
+                    []
+                ).append(group.copy())
+
+        for week_id, dataframes in sorted(weekly_data.items()):
+            week_df = pd.concat(
+                dataframes,
+                ignore_index=True,
+                sort=False
+            )
+
+            week_df = week_df.drop(
+                columns=["iso_year", "iso_week"],
+                errors="ignore"
+            )
+
+            week_df = aggregate_time_blocks(week_df)
+
+            if week_df.empty:
+                print(
+                    f"[AVISO] {camera}: {week_id} "
+                    "não possui registros válidos"
+                )
+                continue
 
             out_file = out_dir / f"{week_id}.csv"
-            week_df.to_csv(out_file, index=False)
 
-            print(f"[INFO] {cam}: {week_id} salvo ({len(week_df)} linhas)")
+            week_df.to_csv(
+                out_file,
+                index=False
+            )
+
+            print(
+                f"[INFO] {camera}: {week_id} salvo "
+                f"({len(week_df)} linhas) em {out_file}"
+            )
 
 
 if __name__ == "__main__":
