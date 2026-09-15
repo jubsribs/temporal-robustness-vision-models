@@ -316,9 +316,9 @@ Each fused training script creates a timestamped directory containing:
 
 ```text
 analysis/<model>/<execution_timestamp>/
-â”œâ”€â”€ figures/    # Confusion matrices, metric plots, and statistical analyses
-â”œâ”€â”€ metrics/    # CSV files containing sample- and episode-level results
-â””â”€â”€ model/      # Serialized trained model
+├── figures/    # Confusion matrices, metric plots, and statistical analyses
+├── metrics/    # CSV files containing sample- and episode-level results
+└── model/      # Serialized trained model
 ```
 
 The main metrics files are:
